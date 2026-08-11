@@ -1,0 +1,1140 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Laporan Kerusakan Mesin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#1c1b19;
+    --panel:#242220;
+    --panel-2:#2b2925;
+    --border:#3a362e;
+    --text:#ede9e1;
+    --muted:#928c7e;
+    --amber:#f2a93b;
+    --amber-dim:#8a6a2c;
+    --danger:#e85c33;
+    --ok:#4c9a6a;
+    --wait:#8c8478;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .hazard{
+    height:8px;
+    width:100%;
+    background:repeating-linear-gradient(135deg,var(--amber) 0 14px,#1c1b19 14px 28px);
+    opacity:.9;
+  }
+  header{
+    padding:22px 20px 16px;
+    border-bottom:1px solid var(--border);
+  }
+  header h1{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:22px;
+    margin:0 0 4px;
+    letter-spacing:.2px;
+  }
+  header p{
+    margin:0;
+    color:var(--muted);
+    font-size:13px;
+    font-family:'IBM Plex Mono',monospace;
+  }
+  main{
+    max-width:920px;
+    margin:0 auto;
+    padding:20px 16px 60px;
+  }
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:18px;
+    margin-bottom:18px;
+  }
+  .panel h2{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:15px;
+    margin:0 0 14px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    color:var(--amber);
+  }
+  .panel h2 .num{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    color:var(--bg);
+    background:var(--amber);
+    padding:2px 7px;
+    border-radius:4px;
+  }
+  .grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px;
+  }
+  @media (max-width:560px){ .grid{grid-template-columns:1fr;} }
+  label{
+    display:block;
+    font-size:12px;
+    color:var(--muted);
+    margin-bottom:5px;
+    font-family:'IBM Plex Mono',monospace;
+    text-transform:uppercase;
+    letter-spacing:.4px;
+  }
+  input[type=text],input[type=date],select,textarea{
+    width:100%;
+    background:var(--panel-2);
+    border:1px solid var(--border);
+    color:var(--text);
+    padding:10px 11px;
+    border-radius:7px;
+    font-size:14px;
+    font-family:'Inter',sans-serif;
+    margin-bottom:12px;
+  }
+  textarea{resize:vertical;min-height:64px;}
+  input:focus,select:focus,textarea:focus{
+    outline:2px solid var(--amber);
+    outline-offset:1px;
+  }
+  .photo-zone{
+    border:1.5px dashed var(--border);
+    border-radius:8px;
+    padding:16px;
+    text-align:center;
+    color:var(--muted);
+    cursor:pointer;
+    font-size:13px;
+    margin-bottom:12px;
+  }
+  .photo-zone:hover{border-color:var(--amber-dim);}
+  .thumbs{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-bottom:12px;
+  }
+  .thumb{
+    position:relative;
+    width:64px;height:64px;
+    border-radius:6px;
+    overflow:hidden;
+    border:1px solid var(--border);
+  }
+  .thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+  .thumb button{
+    position:absolute;top:2px;right:2px;
+    background:rgba(20,18,16,.75);
+    color:#fff;border:none;border-radius:4px;
+    width:18px;height:18px;font-size:11px;line-height:1;
+    cursor:pointer;
+  }
+  .btn{
+    appearance:none;border:none;
+    background:var(--amber);
+    color:#20180a;
+    font-weight:600;
+    padding:11px 18px;
+    border-radius:7px;
+    font-size:14px;
+    cursor:pointer;
+    font-family:'Inter',sans-serif;
+  }
+  .btn.secondary{
+    background:transparent;
+    border:1px solid var(--border);
+    color:var(--text);
+  }
+  .btn.small{padding:6px 10px;font-size:12px;border-radius:6px;}
+  .row-actions{display:flex;gap:8px;margin-top:4px;}
+  .toolbar{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:14px;
+  }
+  .filters{display:flex;gap:6px;flex-wrap:wrap;}
+  .chip{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11.5px;
+    padding:6px 10px;
+    border-radius:999px;
+    border:1px solid var(--border);
+    color:var(--muted);
+    cursor:pointer;
+    background:transparent;
+  }
+  .chip.active{background:var(--amber);color:#20180a;border-color:var(--amber);}
+  .card{
+    background:var(--panel-2);
+    border:1px solid var(--border);
+    border-radius:9px;
+    padding:14px;
+    margin-bottom:10px;
+  }
+  .card-top{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:10px;
+  }
+  .card-id{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--muted);
+  }
+  .card-title{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:15px;
+    margin:2px 0 4px;
+  }
+  .badge{
+    font-size:11px;
+    font-family:'IBM Plex Mono',monospace;
+    padding:3px 9px;
+    border-radius:999px;
+    white-space:nowrap;
+    height:fit-content;
+  }
+  .badge.Menunggu{background:rgba(140,132,120,.18);color:var(--wait);border:1px solid var(--wait);}
+  .badge.Proses{background:rgba(242,169,59,.15);color:var(--amber);border:1px solid var(--amber-dim);}
+  .badge.Selesai{background:rgba(76,154,106,.15);color:var(--ok);border:1px solid var(--ok);}
+  .card-meta{
+    font-size:12.5px;
+    color:var(--muted);
+    margin:6px 0;
+    line-height:1.6;
+  }
+  .card-photos{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
+  .card-photos img{
+    width:52px;height:52px;object-fit:cover;border-radius:6px;
+    border:1px solid var(--border);
+  }
+  .empty{
+    text-align:center;
+    color:var(--muted);
+    padding:34px 10px;
+    font-size:13px;
+  }
+  .foot-note{
+    font-size:11.5px;
+    color:var(--muted);
+    margin-top:6px;
+    font-family:'IBM Plex Mono',monospace;
+  }
+  .bar-row{
+    margin-bottom:10px;
+  }
+  .bar-row-top{
+    display:flex;
+    justify-content:space-between;
+    font-size:12.5px;
+    margin-bottom:4px;
+  }
+  .bar-track{
+    height:8px;
+    background:var(--panel-2);
+    border-radius:999px;
+    overflow:hidden;
+  }
+  .bar-fill{
+    height:100%;
+    background:var(--amber);
+    border-radius:999px;
+  }
+  #toast{
+    position:fixed;bottom:18px;left:50%;transform:translateX(-50%);
+    background:var(--amber);color:#20180a;
+    padding:10px 16px;border-radius:8px;font-size:13px;font-weight:600;
+    display:none;
+  }
+
+  /* Menu awal */
+  .menu-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:14px;
+    margin-top:4px;
+  }
+  @media (max-width:560px){ .menu-grid{grid-template-columns:1fr;} }
+  .menu-card{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:24px 20px;
+    text-align:left;
+    cursor:pointer;
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    transition:border-color .15s ease, transform .15s ease;
+  }
+  .menu-card:hover{
+    border-color:var(--amber-dim);
+    transform:translateY(-2px);
+  }
+  .menu-card .icon{
+    width:42px;height:42px;
+    border-radius:9px;
+    background:rgba(242,169,59,.12);
+    border:1px solid var(--amber-dim);
+    display:flex;align-items:center;justify-content:center;
+    font-size:20px;
+  }
+  .menu-card h3{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:17px;
+    margin:0;
+    color:var(--amber);
+  }
+  .menu-card p{
+    margin:0;
+    font-size:13px;
+    color:var(--muted);
+    line-height:1.5;
+  }
+  .menu-stats{
+    display:flex;
+    gap:6px;
+    flex-wrap:wrap;
+    margin-top:2px;
+  }
+  .menu-stat{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--muted);
+    background:var(--panel-2);
+    border:1px solid var(--border);
+    padding:3px 8px;
+    border-radius:999px;
+  }
+  .back-row{
+    margin-bottom:14px;
+  }
+  .back-btn{
+    appearance:none;border:none;background:transparent;
+    color:var(--muted);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12.5px;
+    cursor:pointer;
+    padding:6px 0;
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+  }
+  .back-btn:hover{color:var(--amber);}
+</style>
+</head>
+<body>
+<div class="hazard"></div>
+<header>
+  <h1>Laporan Kerusakan Mesin</h1>
+  <p>Pencatatan &amp; rekap perbaikan · tersimpan otomatis</p>
+</header>
+
+<main>
+
+  <div id="syncError" style="display:none; background:rgba(232,92,51,.12); border:1px solid var(--danger); color:var(--text); padding:12px 14px; border-radius:9px; margin-bottom:16px; font-size:13px;">
+    ⚠️ <span class="msg"></span>
+    <div style="margin-top:8px;"><button type="button" class="btn small secondary" onclick="loadReports()">🔄 Coba Muat Ulang</button></div>
+  </div>
+
+  <div id="viewMenu">
+    <div class="menu-grid">
+      <button type="button" class="menu-card" onclick="showView('laporan')">
+        <div class="icon">📝</div>
+        <h3>Buat Laporan</h3>
+        <p>Catat kerusakan mesin baru — jenis mesin, kerusakan, teknisi, foto, dan waktu perbaikan.</p>
+      </button>
+      <button type="button" class="menu-card" onclick="showView('rekap')">
+        <div class="icon">📊</div>
+        <h3>Rekap &amp; Analisis</h3>
+        <p>Lihat semua laporan, filter status/mesin/tanggal, export ke Excel, dan lihat statistik bulanan.</p>
+        <div class="menu-stats">
+          <span class="menu-stat" id="menuStatTotal">0 laporan</span>
+          <span class="menu-stat" id="menuStatOpen">0 menunggu/proses</span>
+        </div>
+      </button>
+    </div>
+  </div>
+
+  <div id="viewLaporan" style="display:none;">
+    <div class="back-row">
+      <button type="button" class="back-btn" onclick="showView('menu')">← Kembali ke Menu</button>
+    </div>
+
+  <section class="panel">
+    <h2><span class="num">01</span> Buat Laporan Baru</h2>
+    <form id="reportForm">
+      <div class="grid">
+        <div>
+          <label>Jenis Mesin</label>
+          <select id="f_jenismesin" required>
+            <option value="">Pilih jenis mesin</option>
+            <option value="Moulding">Moulding</option>
+            <option value="Filling">Filling</option>
+            <option value="Autoline">Autoline</option>
+            <option value="MCA">MCA</option>
+            <option value="M50">M50</option>
+            <option value="Lainnya">Lainnya</option>
+          </select>
+        </div>
+        <div>
+          <label>No. Mesin</label>
+          <input type="text" id="f_nomesin" placeholder="Contoh: 02" required>
+        </div>
+      </div>
+      <div id="jenisLainnyaWrap" style="display:none;">
+        <label>Sebutkan Jenis Mesin</label>
+        <input type="text" id="f_jenismesin_lain" placeholder="Nama jenis mesin">
+      </div>
+      <div class="grid">
+        <div>
+          <label>Nama Mesin</label>
+          <input type="text" id="f_mesin" placeholder="Contoh: Mesin Press #3" required>
+        </div>
+        <div>
+          <label>Tanggal</label>
+          <input type="date" id="f_tanggal" required>
+        </div>
+      </div>
+      <div class="grid">
+        <div>
+          <label>Jenis Kerusakan</label>
+          <input type="text" id="f_jenis" placeholder="Contoh: Overheat motor" required>
+        </div>
+        <div>
+          <label>Teknisi</label>
+          <input type="text" id="f_teknisi" placeholder="Nama teknisi" required>
+        </div>
+      </div>
+      <label>Deskripsi / Tindakan Perbaikan</label>
+      <textarea id="f_deskripsi" placeholder="Detail kerusakan, penyebab, tindakan yang dilakukan..."></textarea>
+
+      <div class="grid">
+        <div>
+          <label>Jam Mulai Perbaikan</label>
+          <input type="time" id="f_jammulai">
+        </div>
+        <div>
+          <label>Jam Selesai Perbaikan</label>
+          <input type="time" id="f_jamselesai">
+        </div>
+      </div>
+      <p class="foot-note" id="durasiPreview">Durasi akan dihitung otomatis setelah kedua jam diisi.</p>
+
+      <label>Status</label>
+      <select id="f_status" required>
+        <option value="Menunggu">Menunggu</option>
+        <option value="Proses">Proses</option>
+        <option value="Selesai">Selesai</option>
+      </select>
+
+      <label>Foto Kerusakan</label>
+      <div class="photo-zone" id="photoZone">Ketuk untuk unggah foto (bisa lebih dari satu)</div>
+      <input type="file" id="photoInput" accept="image/*" multiple style="display:none">
+      <div class="thumbs" id="thumbs"></div>
+
+      <button type="submit" class="btn">Simpan Laporan</button>
+    </form>
+    <div id="waBanner" style="display:none; margin-top:14px; padding:12px 14px; background:var(--panel-2); border:1px solid var(--amber-dim); border-radius:8px;">
+      <div style="font-size:13px; margin-bottom:8px;">✅ Laporan tersimpan. Kirim juga ke grup WhatsApp?</div>
+      <a id="waBtn" href="#" target="_blank" class="btn small" style="text-decoration:none; display:inline-block;">💬 Kirim ke WhatsApp</a>
+      <div class="foot-note" style="margin-top:6px;">Akan membuka WhatsApp — tinggal pilih grup laporan lalu tekan kirim. Foto tidak otomatis ikut, cukup teks ringkasan.</div>
+    </div>
+  </section>
+  </div>
+
+  <div id="viewRekap" style="display:none;">
+    <div class="back-row">
+      <button type="button" class="back-btn" onclick="showView('menu')">← Kembali ke Menu</button>
+    </div>
+
+  <section class="panel">
+    <h2><span class="num">02</span> Rekap Laporan</h2>
+    <div class="toolbar">
+      <div class="filters" id="filters">
+        <button class="chip active" data-f="Semua">Semua</button>
+        <button class="chip" data-f="Menunggu">Menunggu</button>
+        <button class="chip" data-f="Proses">Proses</button>
+        <button class="chip" data-f="Selesai">Selesai</button>
+      </div>
+      <button class="btn secondary small" id="exportBtn">⬇ Export ke Excel</button>
+      <button class="btn secondary small" onclick="loadReports()">🔄 Muat Ulang</button>
+    </div>
+    <div class="grid" style="margin-bottom:6px;">
+      <div>
+        <label>Filter Jenis Mesin</label>
+        <select id="filterMesin">
+          <option value="Semua">Semua Mesin</option>
+          <option value="Moulding">Moulding</option>
+          <option value="Filling">Filling</option>
+          <option value="Autoline">Autoline</option>
+          <option value="MCA">MCA</option>
+          <option value="M50">M50</option>
+          <option value="Lainnya">Lainnya</option>
+        </select>
+      </div>
+      <div>
+        <label>Urutkan</label>
+        <select id="sortBy">
+          <option value="tanggal_desc">Tanggal terbaru</option>
+          <option value="tanggal_asc">Tanggal terlama</option>
+          <option value="mesin">Jenis Mesin (A-Z)</option>
+        </select>
+      </div>
+    </div>
+    <div class="grid" style="margin-bottom:14px;">
+      <div>
+        <label>Dari Tanggal</label>
+        <input type="date" id="filterDari">
+      </div>
+      <div>
+        <label>Sampai Tanggal</label>
+        <input type="date" id="filterSampai">
+      </div>
+    </div>
+    <div id="list"></div>
+    <p class="foot-note" id="countNote"></p>
+  </section>
+
+  <section class="panel">
+    <h2><span class="num">03</span> Analisis &amp; Rekap Bulanan</h2>
+    <label>Pilih Bulan</label>
+    <input type="month" id="analyticsMonth" style="max-width:220px;">
+    <div class="grid" style="margin-top:14px;">
+      <div class="card" style="margin-bottom:0;">
+        <div class="card-meta" style="margin:0;">Total Laporan</div>
+        <div class="card-title" id="statTotal" style="margin:0;">0</div>
+      </div>
+      <div class="card" style="margin-bottom:0;">
+        <div class="card-meta" style="margin:0;">Total Downtime</div>
+        <div class="card-title" id="statDowntime" style="margin:0; font-size:14px;">0 menit</div>
+      </div>
+    </div>
+    <div class="grid" style="margin-top:12px;">
+      <div class="card" style="margin-bottom:0;">
+        <div class="card-meta" style="margin:0;">Rata-rata Durasi / Laporan</div>
+        <div class="card-title" id="statAvg" style="margin:0; font-size:14px;">-</div>
+      </div>
+      <div class="card" style="margin-bottom:0;">
+        <div class="card-meta" style="margin:0;">Mesin Paling Sering Rusak</div>
+        <div class="card-title" id="statTop" style="margin:0; font-size:14px;">-</div>
+      </div>
+    </div>
+
+    <h2 style="margin-top:20px; font-size:13px;">Rincian per Jenis Mesin</h2>
+    <div id="breakdown"></div>
+  </section>
+  </div>
+
+</main>
+
+<div id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getFirestore, collection, doc, getDoc, getDocs, setDoc, deleteDoc
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+// ============================================================
+// KONFIGURASI FIREBASE — GANTI dengan config project Firebase Anda
+// (Firebase Console > Project settings > General > Your apps > SDK setup and configuration)
+// ============================================================
+const firebaseConfig = {
+  apiKey: "AIzaSyBW5TdNVCq9sxynYZuLFNtb0P-lDS_DZ7k",
+  authDomain: "laporan-pengerjaan-kerusakan.firebaseapp.com",
+  projectId: "laporan-pengerjaan-kerusakan",
+  storageBucket: "laporan-pengerjaan-kerusakan.firebasestorage.app",
+  messagingSenderId: "456838113783",
+  appId: "1:456838113783:web:2be4fe025d9a2c4e36a6f2"
+};
+
+let db = null;
+let firebaseReady = false;
+try{
+  if(firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith('GANTI')){
+    const app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+    firebaseReady = true;
+  }
+}catch(e){
+  firebaseReady = false;
+}
+
+const REPORTS_COL = 'reports';
+const PHOTOS_COL = 'photos';
+let reports = []; // data ringan (tanpa foto) — cepat dimuat & dianalisis
+let photoCache = {}; // cache foto per id, diambil sesuai kebutuhan
+let expandedPhotoIds = new Set();
+let currentPhotos = [];
+let activeFilter = 'Semua';
+
+const $ = (id) => document.getElementById(id);
+
+function showView(view){
+  const views = { menu: 'viewMenu', laporan: 'viewLaporan', rekap: 'viewRekap' };
+  Object.values(views).forEach(id => { $(id).style.display = 'none'; });
+  $(views[view]).style.display = 'block';
+  window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
+}
+
+function updateMenuStats(){
+  const total = reports.length;
+  const open = reports.filter(r => r.status !== 'Selesai').length;
+  $('menuStatTotal').textContent = `${total} laporan`;
+  $('menuStatOpen').textContent = `${open} menunggu/proses`;
+}
+
+function hitungDurasi(jamMulai, jamSelesai){
+  if(!jamMulai || !jamSelesai) return null;
+  const [h1,m1] = jamMulai.split(':').map(Number);
+  const [h2,m2] = jamSelesai.split(':').map(Number);
+  let menit = (h2*60+m2) - (h1*60+m1);
+  if(menit < 0) menit += 24*60; // lewat tengah malam
+  return menit;
+}
+
+function formatDurasi(menit){
+  if(menit === null || menit === undefined) return '-';
+  const j = Math.floor(menit/60);
+  const m = menit % 60;
+  return j > 0 ? `${j} jam ${m} menit (${menit} menit)` : `${m} menit`;
+}
+
+function updateDurasiPreview(){
+  const menit = hitungDurasi($('f_jammulai').value, $('f_jamselesai').value);
+  $('durasiPreview').textContent = menit === null
+    ? 'Durasi akan dihitung otomatis setelah kedua jam diisi.'
+    : `Durasi perbaikan: ${formatDurasi(menit)}`;
+}
+$('f_jammulai').addEventListener('change', updateDurasiPreview);
+$('f_jamselesai').addEventListener('change', updateDurasiPreview);
+
+function toast(msg){
+  const t = $('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  clearTimeout(toast._h);
+  toast._h = setTimeout(()=> t.style.display='none', 2200);
+}
+
+async function keyExists(id){
+  try{
+    const snap = await getDoc(doc(db, REPORTS_COL, id));
+    return snap.exists();
+  }catch(e){
+    return false;
+  }
+}
+
+async function fetchAllReports(){
+  if(!firebaseReady){
+    return { ok:false, data:[], reason: db === null && !firebaseConfig.apiKey.startsWith('GANTI') ? 'error' : 'no-storage' };
+  }
+  try{
+    const snap = await getDocs(collection(db, REPORTS_COL));
+    const data = [];
+    snap.forEach(d => data.push({ ...d.data(), id: d.id }));
+    return { ok:true, data };
+  }catch(e){
+    return { ok:false, data:[], reason:'error' };
+  }
+}
+
+async function saveReport(report){
+  try{
+    await setDoc(doc(db, REPORTS_COL, report.id), report);
+    return true;
+  }catch(e){
+    return false;
+  }
+}
+
+async function removeReportKey(id){
+  try{
+    await deleteDoc(doc(db, REPORTS_COL, id));
+    return true;
+  }catch(e){
+    return false;
+  }
+}
+
+async function loadReports(){
+  const result = await fetchAllReports();
+  reports = result.data;
+  if(!result.ok){
+    showSyncError(result.reason);
+  } else {
+    hideSyncError();
+  }
+  render();
+  renderAnalytics();
+  updateMenuStats();
+}
+
+function showSyncError(reason){
+  const box = $('syncError');
+  box.style.display = 'block';
+  box.querySelector('.msg').textContent = reason === 'no-storage'
+    ? 'Konfigurasi Firebase belum diisi. Buka file HTML ini, cari bagian "firebaseConfig" di dalam kode, dan ganti dengan config project Firebase Anda.'
+    : 'Gagal terhubung ke Firebase. Cek koneksi internet, config Firebase, dan pastikan Firestore Rules mengizinkan akses.';
+}
+function hideSyncError(){
+  $('syncError').style.display = 'none';
+}
+
+async function getPhotos(id){
+  if(photoCache[id]) return photoCache[id];
+  try{
+    const snap = await getDoc(doc(db, PHOTOS_COL, id));
+    const fotos = snap.exists() && snap.data().fotos ? snap.data().fotos : [];
+    photoCache[id] = fotos;
+    return fotos;
+  }catch(e){
+    return [];
+  }
+}
+
+async function savePhotos(id, fotos){
+  if(!fotos || fotos.length === 0) return;
+  try{
+    await setDoc(doc(db, PHOTOS_COL, id), { fotos });
+    photoCache[id] = fotos;
+  }catch(e){
+    toast('Foto gagal tersimpan (data teks tetap tersimpan)');
+  }
+}
+
+async function deletePhotos(id){
+  try{ await deleteDoc(doc(db, PHOTOS_COL, id)); }catch(e){}
+  delete photoCache[id];
+}
+
+async function genId(){
+  const ymd = new Date().toISOString().slice(0,10).replace(/-/g,'');
+  // Coba beberapa kali sampai dapat ID yang belum dipakai siapa pun (menghindari tabrakan
+  // saat dua orang membuat laporan di waktu yang hampir bersamaan).
+  for(let attempt = 0; attempt < 8; attempt++){
+    const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+    const id = `LAP-${ymd}-${rand}`;
+    const exists = await keyExists(id);
+    if(!exists) return id;
+  }
+  // Sangat tidak mungkin tercapai, tapi tetap sediakan fallback yang unik.
+  return `LAP-${ymd}-${Date.now().toString(36).toUpperCase()}`;
+}
+
+function resizeImage(file, maxW=600, quality=0.65){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxW / img.width);
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function renderThumbs(){
+  $('thumbs').innerHTML = currentPhotos.map((src, i) => `
+    <div class="thumb">
+      <img src="${src}">
+      <button type="button" onclick="removePhoto(${i})">✕</button>
+    </div>
+  `).join('');
+}
+
+function removePhoto(i){
+  currentPhotos.splice(i,1);
+  renderThumbs();
+}
+
+$('photoZone').addEventListener('click', () => $('photoInput').click());
+$('f_jenismesin').addEventListener('change', (e) => {
+  $('jenisLainnyaWrap').style.display = e.target.value === 'Lainnya' ? 'block' : 'none';
+});
+$('photoInput').addEventListener('change', async (e) => {
+  const files = Array.from(e.target.files);
+  for(const f of files){
+    try{
+      const dataUrl = await resizeImage(f);
+      currentPhotos.push(dataUrl);
+    }catch(err){}
+  }
+  renderThumbs();
+  e.target.value = '';
+});
+
+$('reportForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if(!firebaseReady){
+    showSyncError(firebaseConfig.apiKey.startsWith('GANTI') ? 'no-storage' : 'error');
+    toast('Gagal terhubung ke server, laporan belum tersimpan');
+    return;
+  }
+  const submitBtn = e.target.querySelector('button[type=submit]');
+  submitBtn.disabled = true;
+  const id = await genId();
+  const fotos = [...currentPhotos];
+  const report = {
+    id,
+    tanggal: $('f_tanggal').value,
+    jenisMesin: $('f_jenismesin').value === 'Lainnya' ? ($('f_jenismesin_lain').value.trim() || 'Lainnya') : $('f_jenismesin').value,
+    noMesin: $('f_nomesin').value.trim(),
+    mesin: $('f_mesin').value.trim(),
+    jenis: $('f_jenis').value.trim(),
+    teknisi: $('f_teknisi').value.trim(),
+    deskripsi: $('f_deskripsi').value.trim(),
+    jamMulai: $('f_jammulai').value,
+    jamSelesai: $('f_jamselesai').value,
+    durasiMenit: hitungDurasi($('f_jammulai').value, $('f_jamselesai').value),
+    status: $('f_status').value,
+    fotoCount: fotos.length,
+    dibuat: new Date().toISOString()
+  };
+  const saved = await saveReport(report);
+  submitBtn.disabled = false;
+  if(!saved){
+    showSyncError('error');
+    toast('Gagal terhubung ke server, laporan belum tersimpan');
+    return;
+  }
+  hideSyncError();
+  // ID unik per laporan, jadi aman menambahkan ke daftar lokal tanpa menimpa
+  // laporan lain yang mungkin sedang dibuat pengguna lain di saat bersamaan.
+  reports = [report, ...reports];
+  if(fotos.length) await savePhotos(id, fotos);
+  e.target.reset();
+  $('f_tanggal').value = new Date().toISOString().slice(0,10);
+  $('jenisLainnyaWrap').style.display = 'none';
+  updateDurasiPreview();
+  currentPhotos = [];
+  renderThumbs();
+  render();
+  renderAnalytics();
+  updateMenuStats();
+  toast('Laporan tersimpan');
+
+  $('waBtn').href = waLink(report);
+  $('waBanner').style.display = 'block';
+});
+
+async function deleteReport(id){
+  if(!confirm(`Hapus laporan ${id}? Tindakan ini tidak bisa dibatalkan.`)) return;
+  if(!firebaseReady){ showSyncError(firebaseConfig.apiKey.startsWith('GANTI') ? 'no-storage' : 'error'); return; }
+  const ok = await removeReportKey(id);
+  if(!ok){ showSyncError('error'); toast('Gagal terhubung ke server'); return; }
+  hideSyncError();
+  reports = reports.filter(r => r.id !== id);
+  await deletePhotos(id);
+  expandedPhotoIds.delete(id);
+  render();
+  renderAnalytics();
+  updateMenuStats();
+  toast('Laporan dihapus');
+}
+
+async function setStatus(id, status){
+  if(!firebaseReady){ showSyncError(firebaseConfig.apiKey.startsWith('GANTI') ? 'no-storage' : 'error'); render(); return; }
+  try{
+    // Ambil salinan terbaru dari laporan INI SAJA (bukan seluruh daftar) supaya
+    // perubahan status oleh pengguna lain di laporan berbeda tidak ikut tertimpa.
+    const snap = await getDoc(doc(db, REPORTS_COL, id));
+    const current = snap.exists() ? { ...snap.data(), id } : null;
+    if(!current){ toast('Laporan sudah tidak ada (mungkin dihapus pengguna lain)'); await loadReports(); return; }
+    current.status = status;
+    const saved = await saveReport(current);
+    if(!saved){ showSyncError('error'); toast('Gagal terhubung ke server'); render(); return; }
+    hideSyncError();
+    const local = reports.find(r => r.id === id);
+    if(local) local.status = status;
+  }catch(e){
+    showSyncError('error');
+    toast('Gagal terhubung ke server');
+  }
+  render();
+  renderAnalytics();
+  updateMenuStats();
+}
+
+async function togglePhotos(id){
+  if(expandedPhotoIds.has(id)){
+    expandedPhotoIds.delete(id);
+    render();
+    return;
+  }
+  await getPhotos(id);
+  expandedPhotoIds.add(id);
+  render();
+}
+
+$('filters').addEventListener('click', (e) => {
+  const btn = e.target.closest('.chip');
+  if(!btn) return;
+  activeFilter = btn.dataset.f;
+  document.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c===btn));
+  render();
+});
+$('filterMesin').addEventListener('change', render);
+$('filterDari').addEventListener('change', render);
+$('filterSampai').addEventListener('change', render);
+$('sortBy').addEventListener('change', render);
+
+function render(){
+  let filtered = activeFilter === 'Semua' ? [...reports] : reports.filter(r => r.status === activeFilter);
+
+  const mesinFilter = $('filterMesin').value;
+  if(mesinFilter && mesinFilter !== 'Semua'){
+    filtered = filtered.filter(r => r.jenisMesin === mesinFilter);
+  }
+  const dari = $('filterDari').value;
+  const sampai = $('filterSampai').value;
+  if(dari) filtered = filtered.filter(r => r.tanggal && r.tanggal >= dari);
+  if(sampai) filtered = filtered.filter(r => r.tanggal && r.tanggal <= sampai);
+
+  const sortBy = $('sortBy').value;
+  if(sortBy === 'tanggal_asc'){
+    filtered.sort((a,b) => (a.tanggal||'').localeCompare(b.tanggal||''));
+  } else if(sortBy === 'mesin'){
+    filtered.sort((a,b) => (a.jenisMesin||'').localeCompare(b.jenisMesin||'') || (a.noMesin||'').localeCompare(b.noMesin||''));
+  } else {
+    filtered.sort((a,b) => (b.tanggal||'').localeCompare(a.tanggal||''));
+  }
+
+  const list = $('list');
+  if(filtered.length === 0){
+    list.innerHTML = `<div class="empty">Tidak ada laporan yang cocok dengan filter ini.</div>`;
+  } else {
+    list.innerHTML = filtered.map(r => `
+      <div class="card">
+        <div class="card-top">
+          <div>
+            <div class="card-id">${r.id} · ${r.tanggal || '-'}</div>
+            <div class="card-title">${escapeHtml(r.jenisMesin || '-')} No.${escapeHtml(r.noMesin || '-')} — ${escapeHtml(r.mesin)}</div>
+          </div>
+          <span class="badge ${r.status}">${r.status}</span>
+        </div>
+        <div class="card-meta">
+          <strong>Kerusakan:</strong> ${escapeHtml(r.jenis)}<br>
+          <strong>Teknisi:</strong> ${escapeHtml(r.teknisi)}
+          ${r.deskripsi ? '<br><strong>Catatan:</strong> ' + escapeHtml(r.deskripsi) : ''}
+          ${(r.jamMulai && r.jamSelesai) ? `<br><strong>Waktu:</strong> ${r.jamMulai}–${r.jamSelesai} (${formatDurasi(r.durasiMenit)})` : ''}
+        </div>
+        ${r.fotoCount ? `
+          <div class="row-actions" style="margin-top:8px;">
+            <button type="button" class="btn small secondary" onclick="togglePhotos('${r.id}')">
+              🖼 ${expandedPhotoIds.has(r.id) ? 'Sembunyikan' : 'Lihat'} ${r.fotoCount} foto
+            </button>
+          </div>
+          ${expandedPhotoIds.has(r.id) ? `<div class="card-photos">${(photoCache[r.id]||[]).map(f=>`<img src="${f}">`).join('')}</div>` : ''}
+        ` : ''}
+        <div class="row-actions">
+          <select class="btn small secondary" onchange="setStatus('${r.id}', this.value)" style="padding:6px 8px;">
+            <option ${r.status==='Menunggu'?'selected':''}>Menunggu</option>
+            <option ${r.status==='Proses'?'selected':''}>Proses</option>
+            <option ${r.status==='Selesai'?'selected':''}>Selesai</option>
+          </select>
+          <a href="${waLink(r)}" target="_blank" class="btn small secondary" style="text-decoration:none;">💬 WA</a>
+          <button class="btn small secondary" onclick="deleteReport('${r.id}')">Hapus</button>
+        </div>
+      </div>
+    `).join('');
+  }
+  $('countNote').textContent = `${filtered.length} dari ${reports.length} laporan ditampilkan · Akumulasi waktu perbaikan: ${formatDurasi(filtered.reduce((sum,r)=> sum + (r.durasiMenit||0), 0))}`;
+}
+
+function waMessage(r){
+  const lines = [
+    `📋 *Laporan Kerusakan Mesin*`,
+    `ID: ${r.id}`,
+    `Tanggal: ${r.tanggal || '-'}`,
+    `Jenis Mesin: ${r.jenisMesin || '-'}`,
+    `No. Mesin: ${r.noMesin || '-'}`,
+    `Mesin: ${r.mesin}`,
+    `Kerusakan: ${r.jenis}`,
+    `Teknisi: ${r.teknisi}`,
+    `Status: ${r.status}`,
+  ];
+  if(r.deskripsi) lines.push(`Catatan: ${r.deskripsi}`);
+  if(r.jamMulai && r.jamSelesai) lines.push(`Waktu: ${r.jamMulai}–${r.jamSelesai} (${formatDurasi(r.durasiMenit)})`);
+  if(r.fotoCount) lines.push(`(${r.fotoCount} foto terlampir di aplikasi)`);
+  return lines.join('\n');
+}
+
+function waLink(r){
+  return `https://api.whatsapp.com/send?text=${encodeURIComponent(waMessage(r))}`;
+}
+
+function escapeHtml(s){
+  return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function exportExcel(){
+  if(reports.length === 0){ toast('Belum ada data untuk diexport'); return; }
+  toast('Menyiapkan file Excel...');
+  const rowsArr = [];
+  for(const r of reports){
+    const fotos = r.fotoCount ? await getPhotos(r.id) : [];
+    rowsArr.push(`
+    <tr>
+      <td>${r.id}</td>
+      <td>${r.tanggal || ''}</td>
+      <td>${escapeHtml(r.jenisMesin || '')}</td>
+      <td>${escapeHtml(r.noMesin || '')}</td>
+      <td>${escapeHtml(r.mesin)}</td>
+      <td>${escapeHtml(r.jenis)}</td>
+      <td>${escapeHtml(r.teknisi)}</td>
+      <td>${r.status}</td>
+      <td>${r.jamMulai || ''}</td>
+      <td>${r.jamSelesai || ''}</td>
+      <td>${r.durasiMenit ?? ''}</td>
+      <td>${escapeHtml(r.deskripsi)}</td>
+      <td>${fotos.map(f => `<img src="${f}" width="120">`).join('<br>')}</td>
+    </tr>
+  `);
+  }
+  const rows = rowsArr.join('');
+  const totalMenit = reports.reduce((sum,r)=> sum + (r.durasiMenit||0), 0);
+  const totalRow = `
+    <tr>
+      <td colspan="10" style="text-align:right;font-weight:bold;">Akumulasi Total Waktu Perbaikan</td>
+      <td style="font-weight:bold;">${totalMenit} menit</td>
+      <td></td><td></td>
+    </tr>`;
+
+  const html = `
+  <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+  <head>
+    <meta charset="UTF-8">
+    <!--[if gte mso 9]>
+    <xml>
+      <x:ExcelWorkbook>
+        <x:ExcelWorksheets>
+          <x:ExcelWorksheet>
+            <x:Name>Rekap Laporan</x:Name>
+            <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+          </x:ExcelWorksheet>
+        </x:ExcelWorksheets>
+      </x:ExcelWorkbook>
+    </xml>
+    <![endif]-->
+    <style>
+      table{border-collapse:collapse;font-family:Calibri,Arial,sans-serif;font-size:12px;}
+      th,td{border:1px solid #ccc;padding:6px 8px;vertical-align:top;}
+      th{background:#f2a93b;color:#20180a;text-align:left;}
+    </style>
+  </head>
+  <body>
+    <table>
+      <tr>
+        <th>ID</th><th>Tanggal</th><th>Jenis Mesin</th><th>No. Mesin</th><th>Nama Mesin</th><th>Jenis Kerusakan</th>
+        <th>Teknisi</th><th>Status</th><th>Jam Mulai</th><th>Jam Selesai</th><th>Durasi (menit)</th><th>Deskripsi / Tindakan</th><th>Foto</th>
+      </tr>
+      ${rows}
+      ${totalRow}
+    </table>
+  </body>
+  </html>`;
+
+  const blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const stamp = new Date().toISOString().slice(0,10);
+  a.href = url;
+  a.download = `Rekap-Laporan-Kerusakan-Mesin-${stamp}.xls`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('File Excel sedang diunduh');
+}
+
+$('exportBtn').addEventListener('click', exportExcel);
+$('analyticsMonth').addEventListener('change', renderAnalytics);
+
+function renderAnalytics(){
+  const bulan = $('analyticsMonth').value; // format YYYY-MM
+  const data = bulan ? reports.filter(r => (r.tanggal||'').startsWith(bulan)) : reports;
+
+  const total = data.length;
+  const totalMenit = data.reduce((sum,r)=> sum + (r.durasiMenit||0), 0);
+  const rataRata = total ? Math.round(totalMenit/total) : 0;
+
+  $('statTotal').textContent = total;
+  $('statDowntime').textContent = formatDurasi(totalMenit);
+  $('statAvg').textContent = total ? formatDurasi(rataRata) : '-';
+
+  const perMesin = {};
+  data.forEach(r => {
+    const key = r.jenisMesin || 'Lainnya';
+    if(!perMesin[key]) perMesin[key] = { jumlah:0, menit:0 };
+    perMesin[key].jumlah += 1;
+    perMesin[key].menit += (r.durasiMenit||0);
+  });
+  const sortedMesin = Object.entries(perMesin).sort((a,b) => b[1].jumlah - a[1].jumlah);
+
+  $('statTop').textContent = sortedMesin.length ? `${sortedMesin[0][0]} (${sortedMesin[0][1].jumlah}x)` : '-';
+
+  const maxJumlah = sortedMesin.length ? sortedMesin[0][1].jumlah : 1;
+  $('breakdown').innerHTML = sortedMesin.length === 0
+    ? `<div class="empty">Belum ada data untuk periode ini.</div>`
+    : sortedMesin.map(([nama, v]) => `
+        <div class="bar-row">
+          <div class="bar-row-top">
+            <span>${escapeHtml(nama)}</span>
+            <span class="foot-note" style="margin:0;">${v.jumlah} laporan · ${formatDurasi(v.menit)}</span>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:${(v.jumlah/maxJumlah*100).toFixed(0)}%"></div></div>
+        </div>
+      `).join('');
+}
+
+// set default date to today
+$('f_tanggal').value = new Date().toISOString().slice(0,10);
+$('analyticsMonth').value = new Date().toISOString().slice(0,7);
+
+// Script ini dimuat sebagai <script type="module"> (dibutuhkan untuk import Firebase),
+// jadi fungsi yang dipanggil lewat atribut onclick/onchange di HTML harus diekspos
+// secara eksplisit ke window — kalau tidak, browser tidak akan menemukannya.
+window.showView = showView;
+window.loadReports = loadReports;
+window.togglePhotos = togglePhotos;
+window.setStatus = setStatus;
+window.deleteReport = deleteReport;
+window.removePhoto = removePhoto;
+
+showView('menu');
+loadReports();
+</script>
+</body>
+</html>
