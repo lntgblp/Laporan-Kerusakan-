@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Laporan Kerusakan Mesin</title>
+<title>Laporan Kerusakan Elektrikal Mesin</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -211,8 +211,8 @@
     white-space:nowrap;
     height:fit-content;
   }
-  .badge.Menunggu{background:rgba(140,132,120,.18);color:var(--wait);border:1px solid var(--wait);}
-  .badge.Proses{background:rgba(242,169,59,.15);color:var(--amber);border:1px solid var(--amber-dim);}
+  .badge.Pantauan{background:rgba(140,132,120,.18);color:var(--wait);border:1px solid var(--wait);}
+  .badge.Next{background:rgba(242,169,59,.15);color:var(--amber);border:1px solid var(--amber-dim);}
   .badge.Selesai{background:rgba(76,154,106,.15);color:var(--ok);border:1px solid var(--ok);}
   .card-meta{
     font-size:12.5px;
@@ -369,7 +369,7 @@
         <p>Lihat semua laporan, filter status/mesin/tanggal, export ke Excel, dan lihat statistik bulanan.</p>
         <div class="menu-stats">
           <span class="menu-stat" id="menuStatTotal">0 laporan</span>
-          <span class="menu-stat" id="menuStatOpen">0 menunggu/proses</span>
+          <span class="menu-stat" id="menuStatOpen">0 Pantauan/Next</span>
         </div>
       </button>
     </div>
@@ -425,8 +425,17 @@
           <input type="text" id="f_teknisi" placeholder="Nama teknisi" required>
         </div>
       </div>
-      <label>Deskripsi / Tindakan Perbaikan</label>
-      <textarea id="f_deskripsi" placeholder="Detail kerusakan, penyebab, tindakan yang dilakukan..."></textarea>
+      <label>Deskripsi / Catatan Awal</label>
+      <textarea id="f_deskripsi" placeholder="Catatan awal saat laporan dibuat (opsional)..."></textarea>
+
+      <label>Analisa Kerusakan</label>
+      <textarea id="f_analisa" placeholder="Penyebab kerusakan, hasil analisa teknisi..."></textarea>
+
+      <label>Penanganan</label>
+      <textarea id="f_penanganan" placeholder="Langkah penanganan / tindakan perbaikan yang dilakukan..."></textarea>
+
+      <label>Spare Part yang Digunakan</label>
+      <textarea id="f_sparepart" placeholder="Contoh: Bearing 6204, V-belt A-80, Sekring 5A..."></textarea>
 
       <div class="grid">
         <div>
@@ -442,8 +451,8 @@
 
       <label>Status</label>
       <select id="f_status" required>
-        <option value="Menunggu">Menunggu</option>
-        <option value="Proses">Proses</option>
+        <option value="Pantauan">Pantauan</option>
+        <option value="Next">Next</option>
         <option value="Selesai">Selesai</option>
       </select>
 
@@ -472,8 +481,8 @@
     <div class="toolbar">
       <div class="filters" id="filters">
         <button class="chip active" data-f="Semua">Semua</button>
-        <button class="chip" data-f="Menunggu">Menunggu</button>
-        <button class="chip" data-f="Proses">Proses</button>
+        <button class="chip" data-f="Pantauan">Pantauan</button>
+        <button class="chip" data-f="Next">Next</button>
         <button class="chip" data-f="Selesai">Selesai</button>
       </div>
       <button class="btn secondary small" id="exportBtn">⬇ Export ke Excel</button>
@@ -601,7 +610,7 @@ function updateMenuStats(){
   const total = reports.length;
   const open = reports.filter(r => r.status !== 'Selesai').length;
   $('menuStatTotal').textContent = `${total} laporan`;
-  $('menuStatOpen').textContent = `${open} menunggu/proses`;
+  $('menuStatOpen').textContent = `${open} Pantauan/Next`;
 }
 
 function hitungDurasi(jamMulai, jamSelesai){
@@ -815,6 +824,9 @@ $('reportForm').addEventListener('submit', async (e) => {
     jenis: $('f_jenis').value.trim(),
     teknisi: $('f_teknisi').value.trim(),
     deskripsi: $('f_deskripsi').value.trim(),
+    analisaKerusakan: $('f_analisa').value.trim(),
+    penanganan: $('f_penanganan').value.trim(),
+    sparePart: $('f_sparepart').value.trim(),
     jamMulai: $('f_jammulai').value,
     jamSelesai: $('f_jamselesai').value,
     durasiMenit: hitungDurasi($('f_jammulai').value, $('f_jamselesai').value),
@@ -948,6 +960,9 @@ function render(){
           <strong>Kerusakan:</strong> ${escapeHtml(r.jenis)}<br>
           <strong>Teknisi:</strong> ${escapeHtml(r.teknisi)}
           ${r.deskripsi ? '<br><strong>Catatan:</strong> ' + escapeHtml(r.deskripsi) : ''}
+          ${r.analisaKerusakan ? '<br><strong>Analisa Kerusakan:</strong> ' + escapeHtml(r.analisaKerusakan) : ''}
+          ${r.penanganan ? '<br><strong>Penanganan:</strong> ' + escapeHtml(r.penanganan) : ''}
+          ${r.sparePart ? '<br><strong>Spare Part:</strong> ' + escapeHtml(r.sparePart) : ''}
           ${(r.jamMulai && r.jamSelesai) ? `<br><strong>Waktu:</strong> ${r.jamMulai}–${r.jamSelesai} (${formatDurasi(r.durasiMenit)})` : ''}
         </div>
         ${r.fotoCount ? `
@@ -960,8 +975,8 @@ function render(){
         ` : ''}
         <div class="row-actions">
           <select class="btn small secondary" onchange="setStatus('${r.id}', this.value)" style="padding:6px 8px;">
-            <option ${r.status==='Menunggu'?'selected':''}>Menunggu</option>
-            <option ${r.status==='Proses'?'selected':''}>Proses</option>
+            <option ${r.status==='Pantauan'?'selected':''}>Pantauan</option>
+            <option ${r.status==='Next'?'selected':''}>Next</option>
             <option ${r.status==='Selesai'?'selected':''}>Selesai</option>
           </select>
           <a href="${waLink(r)}" target="_blank" class="btn small secondary" style="text-decoration:none;">💬 WA</a>
@@ -986,6 +1001,9 @@ function waMessage(r){
     `Status: ${r.status}`,
   ];
   if(r.deskripsi) lines.push(`Catatan: ${r.deskripsi}`);
+  if(r.analisaKerusakan) lines.push(`Analisa Kerusakan: ${r.analisaKerusakan}`);
+  if(r.penanganan) lines.push(`Penanganan: ${r.penanganan}`);
+  if(r.sparePart) lines.push(`Spare Part: ${r.sparePart}`);
   if(r.jamMulai && r.jamSelesai) lines.push(`Waktu: ${r.jamMulai}–${r.jamSelesai} (${formatDurasi(r.durasiMenit)})`);
   if(r.fotoCount) lines.push(`(${r.fotoCount} foto terlampir di aplikasi)`);
   return lines.join('\n');
@@ -1019,6 +1037,9 @@ async function exportExcel(){
       <td>${r.jamSelesai || ''}</td>
       <td>${r.durasiMenit ?? ''}</td>
       <td>${escapeHtml(r.deskripsi)}</td>
+      <td>${escapeHtml(r.analisaKerusakan)}</td>
+      <td>${escapeHtml(r.penanganan)}</td>
+      <td>${escapeHtml(r.sparePart)}</td>
       <td>${fotos.map(f => `<img src="${f}" width="120">`).join('<br>')}</td>
     </tr>
   `);
@@ -1029,7 +1050,7 @@ async function exportExcel(){
     <tr>
       <td colspan="10" style="text-align:right;font-weight:bold;">Akumulasi Total Waktu Perbaikan</td>
       <td style="font-weight:bold;">${totalMenit} menit</td>
-      <td></td><td></td>
+      <td></td><td></td><td></td><td></td><td></td>
     </tr>`;
 
   const html = `
@@ -1058,7 +1079,7 @@ async function exportExcel(){
     <table>
       <tr>
         <th>ID</th><th>Tanggal</th><th>Jenis Mesin</th><th>No. Mesin</th><th>Nama Mesin</th><th>Jenis Kerusakan</th>
-        <th>Teknisi</th><th>Status</th><th>Jam Mulai</th><th>Jam Selesai</th><th>Durasi (menit)</th><th>Deskripsi / Tindakan</th><th>Foto</th>
+        <th>Teknisi</th><th>Status</th><th>Jam Mulai</th><th>Jam Selesai</th><th>Durasi (menit)</th><th>Deskripsi / Catatan</th><th>Analisa Kerusakan</th><th>Penanganan</th><th>Spare Part</th><th>Foto</th>
       </tr>
       ${rows}
       ${totalRow}
