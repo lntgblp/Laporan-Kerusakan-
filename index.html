@@ -501,8 +501,8 @@
           <input type="text" id="f_teknisi" placeholder="Nama teknisi" required>
         </div>
       </div>
-      <label>Deskripsi / Catatan Awal</label>
-      <textarea id="f_deskripsi" placeholder="Catatan awal saat laporan dibuat (opsional)..."></textarea>
+      <label>Catatan Akhir</label>
+      <textarea id="f_deskripsi" placeholder="Catatan Akhir saat laporan dibuat (opsional)..."></textarea>
 
       <label>Analisa Kerusakan</label>
       <textarea id="f_analisa" placeholder="Penyebab kerusakan, hasil analisa teknisi..."></textarea>
@@ -1231,7 +1231,7 @@ async function exportExcelWithPhotos(ExcelJS){
     { header: 'Jam Mulai', key: 'jamMulai', width: 10 },
     { header: 'Jam Selesai', key: 'jamSelesai', width: 10 },
     { header: 'Durasi (menit)', key: 'durasi', width: 12 },
-    { header: 'Deskripsi / Catatan', key: 'deskripsi', width: 28 },
+    { header: 'Catatan', key: 'deskripsi', width: 28 },
     { header: 'Analisa Kerusakan', key: 'analisa', width: 28 },
     { header: 'Penanganan', key: 'penanganan', width: 28 },
     { header: 'Spare Part', key: 'sparePart', width: 22 }
@@ -1359,7 +1359,7 @@ async function exportExcelFallback(){
     <table>
       <tr>
         <th>ID</th><th>Tanggal</th><th>Jenis Mesin</th><th>No. Mesin</th><th>Nama Mesin</th><th>Jenis Kerusakan</th>
-        <th>Teknisi</th><th>Status</th><th>Jam Mulai</th><th>Jam Selesai</th><th>Durasi (menit)</th><th>Deskripsi / Catatan</th><th>Analisa Kerusakan</th><th>Penanganan</th><th>Spare Part</th><th>Foto</th>
+        <th>Teknisi</th><th>Status</th><th>Jam Mulai</th><th>Jam Selesai</th><th>Durasi (menit)</th><th> Catatan</th><th>Analisa Kerusakan</th><th>Penanganan</th><th>Spare Part</th><th>Foto</th>
       </tr>
       ${rows}
       ${totalRow}
