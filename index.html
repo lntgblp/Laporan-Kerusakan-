@@ -1189,12 +1189,120 @@ function escapeHtml(s){
   return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+function downloadBlob(blob, ext){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const stamp = new Date().toISOString().slice(0,10);
+  a.href = url;
+  a.download = `Rekap-Laporan-Kerusakan-Mesin-${stamp}.${ext}`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 async function exportExcel(){
   if(reports.length === 0){ toast('Belum ada data untuk diexport'); return; }
   toast('Menyiapkan file Excel...');
+  try{
+    const mod = await import('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/+esm');
+    const ExcelJS = mod.default || mod;
+    await exportExcelWithPhotos(ExcelJS);
+  }catch(e){
+    toast('Modul Excel gagal dimuat, memakai mode dasar (tanpa foto)...');
+    await exportExcelFallback();
+  }
+}
+
+async function exportExcelWithPhotos(ExcelJS){
+  const MAX_FOTO_KOLOM = 3;
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('Rekap Laporan');
+
+  const columns = [
+    { header: 'ID', key: 'id', width: 18 },
+    { header: 'Tanggal', key: 'tanggal', width: 12 },
+    { header: 'Jenis Mesin', key: 'jenisMesin', width: 14 },
+    { header: 'No. Mesin', key: 'noMesin', width: 10 },
+    { header: 'Nama Mesin', key: 'mesin', width: 20 },
+    { header: 'Jenis Kerusakan', key: 'jenis', width: 22 },
+    { header: 'Teknisi', key: 'teknisi', width: 16 },
+    { header: 'Status', key: 'status', width: 14 },
+    { header: 'Jam Mulai', key: 'jamMulai', width: 10 },
+    { header: 'Jam Selesai', key: 'jamSelesai', width: 10 },
+    { header: 'Durasi (menit)', key: 'durasi', width: 12 },
+    { header: 'Deskripsi / Catatan', key: 'deskripsi', width: 28 },
+    { header: 'Analisa Kerusakan', key: 'analisa', width: 28 },
+    { header: 'Penanganan', key: 'penanganan', width: 28 },
+    { header: 'Spare Part', key: 'sparePart', width: 22 }
+  ];
+  for(let i = 1; i <= MAX_FOTO_KOLOM; i++){
+    columns.push({ header: `Foto ${i}`, key: `foto${i}`, width: 13 });
+  }
+  columns.push({ header: 'Catatan Foto', key: 'fotoNote', width: 22 });
+  sheet.columns = columns;
+
+  const headerRow = sheet.getRow(1);
+  headerRow.font = { bold: true, color: { argb: 'FF20180A' } };
+  headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2A93B' } };
+  headerRow.alignment = { vertical: 'middle' };
+  headerRow.height = 20;
+
+  const fotoColStart = columns.findIndex(c => c.key === 'foto1');
+  let totalMenit = 0;
+
+  for(const r of reports){
+    totalMenit += (r.durasiMenit || 0);
+    const fotos = r.fotoCount ? await getPhotos(r.id) : [];
+    const row = sheet.addRow({
+      id: r.id,
+      tanggal: r.tanggal || '',
+      jenisMesin: r.jenisMesin || '',
+      noMesin: r.noMesin || '',
+      mesin: r.mesin || '',
+      jenis: r.jenis || '',
+      teknisi: r.teknisi || '',
+      status: statusLabel(r.status),
+      jamMulai: r.jamMulai || '',
+      jamSelesai: r.jamSelesai || '',
+      durasi: r.durasiMenit ?? '',
+      deskripsi: r.deskripsi || '',
+      analisa: r.analisaKerusakan || '',
+      penanganan: r.penanganan || '',
+      sparePart: r.sparePart || '',
+      fotoNote: fotos.length > MAX_FOTO_KOLOM ? `+${fotos.length - MAX_FOTO_KOLOM} foto lainnya di aplikasi` : ''
+    });
+    row.alignment = { vertical: 'top', wrapText: true };
+
+    if(fotos.length){
+      row.height = 64;
+      fotos.slice(0, MAX_FOTO_KOLOM).forEach((base64, idx) => {
+        try{
+          const ext = base64.startsWith('data:image/png') ? 'png' : 'jpeg';
+          const imgId = workbook.addImage({ base64, extension: ext });
+          sheet.addImage(imgId, {
+            tl: { col: fotoColStart + idx + 0.06, row: (row.number - 1) + 0.06 },
+            ext: { width: 62, height: 62 }
+          });
+        }catch(imgErr){
+          // lewati foto ini kalau gagal ditanam, data lain tetap tersimpan
+        }
+      });
+    }
+  }
+
+  const totalRow = sheet.addRow({ id: 'Akumulasi Total Waktu Perbaikan', durasi: `${totalMenit} menit` });
+  totalRow.font = { bold: true };
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  downloadBlob(blob, 'xlsx');
+  toast('File Excel (dengan foto) sedang diunduh');
+}
+
+async function exportExcelFallback(){
   const rowsArr = [];
   for(const r of reports){
-    const fotos = r.fotoCount ? await getPhotos(r.id) : [];
     rowsArr.push(`
     <tr>
       <td>${r.id}</td>
@@ -1212,7 +1320,7 @@ async function exportExcel(){
       <td>${escapeHtml(r.analisaKerusakan)}</td>
       <td>${escapeHtml(r.penanganan)}</td>
       <td>${escapeHtml(r.sparePart)}</td>
-      <td>${fotos.map(f => `<img src="${f}" width="120">`).join('<br>')}</td>
+      <td>${r.fotoCount ? `${r.fotoCount} foto — lihat di aplikasi` : ''}</td>
     </tr>
   `);
   }
@@ -1260,16 +1368,8 @@ async function exportExcel(){
   </html>`;
 
   const blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  const stamp = new Date().toISOString().slice(0,10);
-  a.href = url;
-  a.download = `Rekap-Laporan-Kerusakan-Mesin-${stamp}.xls`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  toast('File Excel sedang diunduh');
+  downloadBlob(blob, 'xls');
+  toast('File Excel (mode dasar, tanpa foto) sedang diunduh');
 }
 
 $('exportBtn').addEventListener('click', exportExcel);
