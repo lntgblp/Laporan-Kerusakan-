@@ -94,7 +94,7 @@
     text-transform:uppercase;
     letter-spacing:.4px;
   }
-  input[type=text],input[type=date],select,textarea{
+  input[type=text],input[type=date],input[type=password],select,textarea{
     width:100%;
     background:var(--panel-2);
     border:1px solid var(--border);
@@ -159,7 +159,7 @@
     color:var(--text);
   }
   .btn.small{padding:6px 10px;font-size:12px;border-radius:6px;}
-  .row-actions{display:flex;gap:8px;margin-top:4px;}
+  .row-actions{display:flex;gap:8px;margin-top:4px;flex-wrap:wrap;}
   .toolbar{
     display:flex;
     gap:8px;
@@ -262,16 +262,16 @@
     background:var(--amber);color:#20180a;
     padding:10px 16px;border-radius:8px;font-size:13px;font-weight:600;
     display:none;
+    z-index:200;
   }
 
   /* Menu awal */
   .menu-grid{
     display:grid;
-    grid-template-columns:1fr 1fr;
+    grid-template-columns:repeat(auto-fit, minmax(230px, 1fr));
     gap:14px;
     margin-top:4px;
   }
-  @media (max-width:560px){ .menu-grid{grid-template-columns:1fr;} }
   .menu-card{
     background:var(--panel);
     border:1px solid var(--border);
@@ -303,6 +303,9 @@
     font-size:17px;
     margin:0;
     color:var(--amber);
+    display:flex;
+    align-items:center;
+    gap:6px;
   }
   .menu-card p{
     margin:0;
@@ -340,6 +343,32 @@
     gap:6px;
   }
   .back-btn:hover{color:var(--amber);}
+
+  /* Modal password */
+  .modal-overlay{
+    position:fixed; inset:0;
+    background:rgba(10,9,8,.72);
+    display:flex; align-items:center; justify-content:center;
+    z-index:150;
+    padding:16px;
+  }
+  .modal-box{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:20px;
+    width:100%;
+    max-width:300px;
+  }
+  .modal-box h3{
+    margin:0 0 14px;
+    font-family:'Space Grotesk',sans-serif;
+    color:var(--amber);
+    font-size:16px;
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
 </style>
 </head>
 <body>
@@ -363,16 +392,63 @@
         <h3>Buat Laporan</h3>
         <p>Catat kerusakan mesin baru — jenis mesin, kerusakan, teknisi, foto, dan waktu perbaikan.</p>
       </button>
-      <button type="button" class="menu-card" onclick="showView('rekap')">
+      <button type="button" class="menu-card" onclick="openRekap()">
         <div class="icon">📊</div>
-        <h3>Rekap &amp; Analisis</h3>
-        <p>Lihat semua laporan, filter status/mesin/tanggal, export ke Excel, dan lihat statistik bulanan.</p>
+        <h3>Rekap &amp; Analisis <span style="font-size:12px;">🔒</span></h3>
+        <p>Kelola status, hapus laporan, export Excel, dan lihat statistik bulanan. Dilindungi password.</p>
         <div class="menu-stats">
           <span class="menu-stat" id="menuStatTotal">0 laporan</span>
-          <span class="menu-stat" id="menuStatOpen">0 Pantauan/Next</span>
+          <span class="menu-stat" id="menuStatOpen">0 dalam proses</span>
         </div>
       </button>
     </div>
+
+    <section class="panel" style="margin-top:18px;">
+      <h2>📄 Laporan Hasil Pengerjaan <span style="font-size:11px;color:var(--muted);font-weight:400;">(mode lihat saja)</span></h2>
+      <div class="toolbar">
+        <div class="filters" id="filtersLihat">
+          <button class="chip active" data-f="Semua">Semua</button>
+          <button class="chip" data-f="Pantauan">Dalam Pantauan</button>
+          <button class="chip" data-f="Next">Next Shift</button>
+          <button class="chip" data-f="Selesai">Selesai</button>
+        </div>
+        <button class="btn secondary small" onclick="loadReports()">🔄 Muat Ulang</button>
+      </div>
+      <div class="grid" style="margin-bottom:6px;">
+        <div>
+          <label>Filter Jenis Mesin</label>
+          <select id="filterMesinLihat">
+            <option value="Semua">Semua Mesin</option>
+            <option value="Moulding">Moulding</option>
+            <option value="Filling">Filling</option>
+            <option value="Autoline">Autoline</option>
+            <option value="MCA">MCA</option>
+            <option value="M50">M50</option>
+            <option value="Lainnya">Lainnya</option>
+          </select>
+        </div>
+        <div>
+          <label>Urutkan</label>
+          <select id="sortByLihat">
+            <option value="tanggal_desc">Tanggal terbaru</option>
+            <option value="tanggal_asc">Tanggal terlama</option>
+            <option value="mesin">Jenis Mesin (A-Z)</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid" style="margin-bottom:14px;">
+        <div>
+          <label>Dari Tanggal</label>
+          <input type="date" id="filterDariLihat">
+        </div>
+        <div>
+          <label>Sampai Tanggal</label>
+          <input type="date" id="filterSampaiLihat">
+        </div>
+      </div>
+      <div id="listLihat"></div>
+      <p class="foot-note" id="countNoteLihat"></p>
+    </section>
   </div>
 
   <div id="viewLaporan" style="display:none;">
@@ -451,8 +527,8 @@
 
       <label>Status</label>
       <select id="f_status" required>
-        <option value="Pantauan">Pantauan</option>
-        <option value="Next">Next</option>
+        <option value="Pantauan">Dalam Pantauan</option>
+        <option value="Next">Next Shift</option>
         <option value="Selesai">Selesai</option>
       </select>
 
@@ -477,12 +553,12 @@
     </div>
 
   <section class="panel">
-    <h2><span class="num">02</span> Rekap Laporan</h2>
+    <h2><span class="num">03</span> Rekap Laporan</h2>
     <div class="toolbar">
       <div class="filters" id="filters">
         <button class="chip active" data-f="Semua">Semua</button>
-        <button class="chip" data-f="Pantauan">Pantauan</button>
-        <button class="chip" data-f="Next">Next</button>
+        <button class="chip" data-f="Pantauan">Dalam Pantauan</button>
+        <button class="chip" data-f="Next">Next Shift</button>
         <button class="chip" data-f="Selesai">Selesai</button>
       </div>
       <button class="btn secondary small" id="exportBtn">⬇ Export ke Excel</button>
@@ -525,7 +601,7 @@
   </section>
 
   <section class="panel">
-    <h2><span class="num">03</span> Analisis &amp; Rekap Bulanan</h2>
+    <h2><span class="num">04</span> Analisis &amp; Rekap Bulanan</h2>
     <label>Pilih Bulan</label>
     <input type="month" id="analyticsMonth" style="max-width:220px;">
     <div class="grid" style="margin-top:14px;">
@@ -556,6 +632,19 @@
 
 </main>
 
+<div id="pwModal" class="modal-overlay" style="display:none;">
+  <div class="modal-box">
+    <h3>🔒 Masuk ke Rekap &amp; Analisis</h3>
+    <label>Password</label>
+    <input type="password" id="pwInput" placeholder="Masukkan password">
+    <p class="foot-note" id="pwError" style="display:none;color:var(--danger);">Password salah, coba lagi.</p>
+    <div class="row-actions" style="margin-top:4px;">
+      <button type="button" class="btn small" onclick="checkPassword()">Buka</button>
+      <button type="button" class="btn small secondary" onclick="closePwModal()">Batal</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script type="module">
@@ -577,6 +666,14 @@ const firebaseConfig = {
   appId: "1:456838113783:web:2be4fe025d9a2c4e36a6f2"
 };
 
+// ============================================================
+// PASSWORD REKAP — GANTI dengan password sederhana pilihan Anda.
+// Ini hanya pengaman ringan di sisi tampilan (menghindari salah pencet),
+// bukan keamanan tingkat tinggi — siapa pun yang bisa lihat kode sumber
+// halaman ini bisa melihat password ini juga.
+// ============================================================
+const REKAP_PASSWORD = 'bengkel123';
+
 let db = null;
 let firebaseReady = false;
 try{
@@ -591,11 +688,16 @@ try{
 
 const REPORTS_COL = 'reports';
 const PHOTOS_COL = 'photos';
+const STATUS_LABELS = { Pantauan: 'Dalam Pantauan', Next: 'Next Shift', Selesai: 'Selesai' };
+function statusLabel(status){ return STATUS_LABELS[status] || status; }
+
 let reports = []; // data ringan (tanpa foto) — cepat dimuat & dianalisis
 let photoCache = {}; // cache foto per id, diambil sesuai kebutuhan
 let expandedPhotoIds = new Set();
 let currentPhotos = [];
 let activeFilter = 'Semua';
+let activeFilterLihat = 'Semua';
+let rekapUnlocked = false;
 
 const $ = (id) => document.getElementById(id);
 
@@ -606,11 +708,34 @@ function showView(view){
   window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
 }
 
+function openRekap(){
+  if(rekapUnlocked){ showView('rekap'); return; }
+  $('pwInput').value = '';
+  $('pwError').style.display = 'none';
+  $('pwModal').style.display = 'flex';
+  setTimeout(()=> $('pwInput').focus(), 50);
+}
+function closePwModal(){
+  $('pwModal').style.display = 'none';
+}
+function checkPassword(){
+  if($('pwInput').value === REKAP_PASSWORD){
+    rekapUnlocked = true;
+    closePwModal();
+    showView('rekap');
+  } else {
+    $('pwError').style.display = 'block';
+  }
+}
+$('pwInput').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter'){ e.preventDefault(); checkPassword(); }
+});
+
 function updateMenuStats(){
   const total = reports.length;
   const open = reports.filter(r => r.status !== 'Selesai').length;
   $('menuStatTotal').textContent = `${total} laporan`;
-  $('menuStatOpen').textContent = `${open} Pantauan/Next`;
+  $('menuStatOpen').textContent = `${open} dalam proses`;
 }
 
 function hitungDurasi(jamMulai, jamSelesai){
@@ -696,6 +821,7 @@ async function loadReports(){
     hideSyncError();
   }
   render();
+  renderLihat();
   renderAnalytics();
   updateMenuStats();
 }
@@ -853,6 +979,7 @@ $('reportForm').addEventListener('submit', async (e) => {
   currentPhotos = [];
   renderThumbs();
   render();
+  renderLihat();
   renderAnalytics();
   updateMenuStats();
   toast('Laporan tersimpan');
@@ -871,6 +998,7 @@ async function deleteReport(id){
   await deletePhotos(id);
   expandedPhotoIds.delete(id);
   render();
+  renderLihat();
   renderAnalytics();
   updateMenuStats();
   toast('Laporan dihapus');
@@ -895,6 +1023,7 @@ async function setStatus(id, status){
     toast('Gagal terhubung ke server');
   }
   render();
+  renderLihat();
   renderAnalytics();
   updateMenuStats();
 }
@@ -903,18 +1032,20 @@ async function togglePhotos(id){
   if(expandedPhotoIds.has(id)){
     expandedPhotoIds.delete(id);
     render();
+    renderLihat();
     return;
   }
   await getPhotos(id);
   expandedPhotoIds.add(id);
   render();
+  renderLihat();
 }
 
 $('filters').addEventListener('click', (e) => {
   const btn = e.target.closest('.chip');
   if(!btn) return;
   activeFilter = btn.dataset.f;
-  document.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c===btn));
+  $('filters').querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c===btn));
   render();
 });
 $('filterMesin').addEventListener('change', render);
@@ -922,19 +1053,27 @@ $('filterDari').addEventListener('change', render);
 $('filterSampai').addEventListener('change', render);
 $('sortBy').addEventListener('change', render);
 
-function render(){
-  let filtered = activeFilter === 'Semua' ? [...reports] : reports.filter(r => r.status === activeFilter);
+$('filtersLihat').addEventListener('click', (e) => {
+  const btn = e.target.closest('.chip');
+  if(!btn) return;
+  activeFilterLihat = btn.dataset.f;
+  $('filtersLihat').querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c===btn));
+  renderLihat();
+});
+$('filterMesinLihat').addEventListener('change', renderLihat);
+$('filterDariLihat').addEventListener('change', renderLihat);
+$('filterSampaiLihat').addEventListener('change', renderLihat);
+$('sortByLihat').addEventListener('change', renderLihat);
 
-  const mesinFilter = $('filterMesin').value;
+function applyFilters({ statusFilter, mesinFilter, dari, sampai, sortBy }){
+  let filtered = statusFilter === 'Semua' ? [...reports] : reports.filter(r => r.status === statusFilter);
+
   if(mesinFilter && mesinFilter !== 'Semua'){
     filtered = filtered.filter(r => r.jenisMesin === mesinFilter);
   }
-  const dari = $('filterDari').value;
-  const sampai = $('filterSampai').value;
   if(dari) filtered = filtered.filter(r => r.tanggal && r.tanggal >= dari);
   if(sampai) filtered = filtered.filter(r => r.tanggal && r.tanggal <= sampai);
 
-  const sortBy = $('sortBy').value;
   if(sortBy === 'tanggal_asc'){
     filtered.sort((a,b) => (a.tanggal||'').localeCompare(b.tanggal||''));
   } else if(sortBy === 'mesin'){
@@ -942,19 +1081,28 @@ function render(){
   } else {
     filtered.sort((a,b) => (b.tanggal||'').localeCompare(a.tanggal||''));
   }
+  return filtered;
+}
 
-  const list = $('list');
-  if(filtered.length === 0){
-    list.innerHTML = `<div class="empty">Tidak ada laporan yang cocok dengan filter ini.</div>`;
-  } else {
-    list.innerHTML = filtered.map(r => `
+function buildCardHtml(r, readOnly){
+  const actionsHtml = readOnly ? '' : `
+        <div class="row-actions">
+          <select class="btn small secondary" onchange="setStatus('${r.id}', this.value)" style="padding:6px 8px;">
+            <option value="Pantauan" ${r.status==='Pantauan'?'selected':''}>Dalam Pantauan</option>
+            <option value="Next" ${r.status==='Next'?'selected':''}>Next Shift</option>
+            <option value="Selesai" ${r.status==='Selesai'?'selected':''}>Selesai</option>
+          </select>
+          <a href="${waLink(r)}" target="_blank" class="btn small secondary" style="text-decoration:none;">💬 WA</a>
+          <button class="btn small secondary" onclick="deleteReport('${r.id}')">Hapus</button>
+        </div>`;
+  return `
       <div class="card">
         <div class="card-top">
           <div>
             <div class="card-id">${r.id} · ${r.tanggal || '-'}</div>
             <div class="card-title">${escapeHtml(r.jenisMesin || '-')} No.${escapeHtml(r.noMesin || '-')} — ${escapeHtml(r.mesin)}</div>
           </div>
-          <span class="badge ${r.status}">${r.status}</span>
+          <span class="badge ${r.status}">${statusLabel(r.status)}</span>
         </div>
         <div class="card-meta">
           <strong>Kerusakan:</strong> ${escapeHtml(r.jenis)}<br>
@@ -973,19 +1121,43 @@ function render(){
           </div>
           ${expandedPhotoIds.has(r.id) ? `<div class="card-photos">${(photoCache[r.id]||[]).map(f=>`<img src="${f}">`).join('')}</div>` : ''}
         ` : ''}
-        <div class="row-actions">
-          <select class="btn small secondary" onchange="setStatus('${r.id}', this.value)" style="padding:6px 8px;">
-            <option ${r.status==='Pantauan'?'selected':''}>Pantauan</option>
-            <option ${r.status==='Next'?'selected':''}>Next</option>
-            <option ${r.status==='Selesai'?'selected':''}>Selesai</option>
-          </select>
-          <a href="${waLink(r)}" target="_blank" class="btn small secondary" style="text-decoration:none;">💬 WA</a>
-          <button class="btn small secondary" onclick="deleteReport('${r.id}')">Hapus</button>
-        </div>
+        ${actionsHtml}
       </div>
-    `).join('');
-  }
+  `;
+}
+
+function render(){
+  const filtered = applyFilters({
+    statusFilter: activeFilter,
+    mesinFilter: $('filterMesin').value,
+    dari: $('filterDari').value,
+    sampai: $('filterSampai').value,
+    sortBy: $('sortBy').value
+  });
+
+  const list = $('list');
+  list.innerHTML = filtered.length === 0
+    ? `<div class="empty">Tidak ada laporan yang cocok dengan filter ini.</div>`
+    : filtered.map(r => buildCardHtml(r, false)).join('');
+
   $('countNote').textContent = `${filtered.length} dari ${reports.length} laporan ditampilkan · Akumulasi waktu perbaikan: ${formatDurasi(filtered.reduce((sum,r)=> sum + (r.durasiMenit||0), 0))}`;
+}
+
+function renderLihat(){
+  const filtered = applyFilters({
+    statusFilter: activeFilterLihat,
+    mesinFilter: $('filterMesinLihat').value,
+    dari: $('filterDariLihat').value,
+    sampai: $('filterSampaiLihat').value,
+    sortBy: $('sortByLihat').value
+  });
+
+  const list = $('listLihat');
+  list.innerHTML = filtered.length === 0
+    ? `<div class="empty">Tidak ada laporan yang cocok dengan filter ini.</div>`
+    : filtered.map(r => buildCardHtml(r, true)).join('');
+
+  $('countNoteLihat').textContent = `${filtered.length} dari ${reports.length} laporan ditampilkan`;
 }
 
 function waMessage(r){
@@ -998,7 +1170,7 @@ function waMessage(r){
     `Mesin: ${r.mesin}`,
     `Kerusakan: ${r.jenis}`,
     `Teknisi: ${r.teknisi}`,
-    `Status: ${r.status}`,
+    `Status: ${statusLabel(r.status)}`,
   ];
   if(r.deskripsi) lines.push(`Catatan: ${r.deskripsi}`);
   if(r.analisaKerusakan) lines.push(`Analisa Kerusakan: ${r.analisaKerusakan}`);
@@ -1032,7 +1204,7 @@ async function exportExcel(){
       <td>${escapeHtml(r.mesin)}</td>
       <td>${escapeHtml(r.jenis)}</td>
       <td>${escapeHtml(r.teknisi)}</td>
-      <td>${r.status}</td>
+      <td>${statusLabel(r.status)}</td>
       <td>${r.jamMulai || ''}</td>
       <td>${r.jamSelesai || ''}</td>
       <td>${r.durasiMenit ?? ''}</td>
@@ -1153,6 +1325,9 @@ window.togglePhotos = togglePhotos;
 window.setStatus = setStatus;
 window.deleteReport = deleteReport;
 window.removePhoto = removePhoto;
+window.openRekap = openRekap;
+window.closePwModal = closePwModal;
+window.checkPassword = checkPassword;
 
 showView('menu');
 loadReports();
