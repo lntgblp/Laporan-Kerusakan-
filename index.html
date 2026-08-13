@@ -214,6 +214,8 @@
   .badge.Pantauan{background:rgba(140,132,120,.18);color:var(--wait);border:1px solid var(--wait);}
   .badge.Next{background:rgba(242,169,59,.15);color:var(--amber);border:1px solid var(--amber-dim);}
   .badge.Selesai{background:rgba(76,154,106,.15);color:var(--ok);border:1px solid var(--ok);}
+  .badge.kategori{background:rgba(146,140,127,.12);color:var(--muted);border:1px solid var(--border);}
+  .badge.nodowntime{background:rgba(76,154,106,.12);color:var(--ok);border:1px solid var(--ok);}
   .card-meta{
     font-size:12.5px;
     color:var(--muted);
@@ -369,6 +371,15 @@
     align-items:center;
     gap:6px;
   }
+  .checkbox-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:14px;
+    font-size:13px;
+    color:var(--text);
+  }
+  .checkbox-row input{width:auto; margin:0;}
 </style>
 </head>
 <body>
@@ -481,6 +492,21 @@
         <label>Sebutkan Jenis Mesin</label>
         <input type="text" id="f_jenismesin_lain" placeholder="Nama jenis mesin">
       </div>
+
+      <label>Kategori Pekerjaan</label>
+      <select id="f_kategori" required>
+        <option value="Breakdown">Kerusakan Mesin Produksi (Breakdown)</option>
+        <option value="BreakdownNonProduksi">Kerusakan di Luar Mesin Produksi</option>
+        <option value="PM">Preventive Maintenance (PM)</option>
+        <option value="Improvement">Improvement</option>
+        <option value="Lainnya">Lainnya</option>
+      </select>
+      <div class="checkbox-row">
+        <input type="checkbox" id="f_isdowntime">
+        <label style="margin:0;" for="f_isdowntime">Hitung sebagai downtime produksi</label>
+      </div>
+      <p class="foot-note" id="downtimeHint" style="margin-top:-6px;">Otomatis tercentang untuk kategori "Kerusakan Mesin Produksi" — ubah manual kalau perlu.</p>
+
       <div class="grid">
         <div>
           <label>Nama Mesin</label>
@@ -493,7 +519,7 @@
       </div>
       <div class="grid">
         <div>
-          <label>Jenis Kerusakan</label>
+          <label>Jenis Kerusakan / Pekerjaan</label>
           <input type="text" id="f_jenis" placeholder="Contoh: Overheat motor" required>
         </div>
         <div>
@@ -578,6 +604,19 @@
         </select>
       </div>
       <div>
+        <label>Filter Kategori</label>
+        <select id="filterKategori">
+          <option value="Semua">Semua Kategori</option>
+          <option value="Breakdown">Kerusakan Produksi</option>
+          <option value="BreakdownNonProduksi">Kerusakan Non-Produksi</option>
+          <option value="PM">Preventive Maintenance</option>
+          <option value="Improvement">Improvement</option>
+          <option value="Lainnya">Lainnya</option>
+        </select>
+      </div>
+    </div>
+    <div class="grid" style="margin-bottom:6px;">
+      <div>
         <label>Urutkan</label>
         <select id="sortBy">
           <option value="tanggal_desc">Tanggal terbaru</option>
@@ -585,6 +624,7 @@
           <option value="mesin">Jenis Mesin (A-Z)</option>
         </select>
       </div>
+      <div></div>
     </div>
     <div class="grid" style="margin-bottom:14px;">
       <div>
@@ -610,22 +650,33 @@
         <div class="card-title" id="statTotal" style="margin:0;">0</div>
       </div>
       <div class="card" style="margin-bottom:0;">
-        <div class="card-meta" style="margin:0;">Total Downtime</div>
+        <div class="card-meta" style="margin:0;">Total Downtime Produksi</div>
         <div class="card-title" id="statDowntime" style="margin:0; font-size:14px;">0 menit</div>
       </div>
     </div>
     <div class="grid" style="margin-top:12px;">
       <div class="card" style="margin-bottom:0;">
-        <div class="card-meta" style="margin:0;">Rata-rata Durasi / Laporan</div>
+        <div class="card-meta" style="margin:0;">Rata-rata Downtime / Laporan</div>
         <div class="card-title" id="statAvg" style="margin:0; font-size:14px;">-</div>
       </div>
       <div class="card" style="margin-bottom:0;">
-        <div class="card-meta" style="margin:0;">Mesin Paling Sering Rusak</div>
+        <div class="card-meta" style="margin:0;">Mesin Paling Sering Downtime</div>
         <div class="card-title" id="statTop" style="margin:0; font-size:14px;">-</div>
       </div>
     </div>
+    <div class="grid" style="margin-top:12px;">
+      <div class="card" style="margin-bottom:0;">
+        <div class="card-meta" style="margin:0;">Waktu PM (Preventive Maintenance)</div>
+        <div class="card-title" id="statPM" style="margin:0; font-size:14px;">-</div>
+      </div>
+      <div class="card" style="margin-bottom:0;">
+        <div class="card-meta" style="margin:0;">Waktu Improvement</div>
+        <div class="card-title" id="statImprove" style="margin:0; font-size:14px;">-</div>
+      </div>
+    </div>
+    <p class="foot-note" style="margin-top:10px;">Kerusakan non-produksi, PM, dan Improvement dihitung terpisah dan TIDAK masuk ke angka Downtime Produksi di atas.</p>
 
-    <h2 style="margin-top:20px; font-size:13px;">Rincian per Jenis Mesin</h2>
+    <h2 style="margin-top:20px; font-size:13px;">Rincian Downtime per Jenis Mesin</h2>
     <div id="breakdown"></div>
   </section>
   </div>
@@ -653,10 +704,6 @@ import {
   getFirestore, collection, doc, getDoc, getDocs, setDoc, deleteDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// ============================================================
-// KONFIGURASI FIREBASE — GANTI dengan config project Firebase Anda
-// (Firebase Console > Project settings > General > Your apps > SDK setup and configuration)
-// ============================================================
 const firebaseConfig = {
   apiKey: "AIzaSyBW5TdNVCq9sxynYZuLFNtb0P-lDS_DZ7k",
   authDomain: "laporan-pengerjaan-kerusakan.firebaseapp.com",
@@ -666,12 +713,6 @@ const firebaseConfig = {
   appId: "1:456838113783:web:2be4fe025d9a2c4e36a6f2"
 };
 
-// ============================================================
-// PASSWORD REKAP — GANTI dengan password sederhana pilihan Anda.
-// Ini hanya pengaman ringan di sisi tampilan (menghindari salah pencet),
-// bukan keamanan tingkat tinggi — siapa pun yang bisa lihat kode sumber
-// halaman ini bisa melihat password ini juga.
-// ============================================================
 const REKAP_PASSWORD = 'bengkel123';
 
 let db = null;
@@ -691,8 +732,18 @@ const PHOTOS_COL = 'photos';
 const STATUS_LABELS = { Pantauan: 'Dalam Pantauan', Next: 'Next Shift', Selesai: 'Selesai' };
 function statusLabel(status){ return STATUS_LABELS[status] || status; }
 
-let reports = []; // data ringan (tanpa foto) — cepat dimuat & dianalisis
-let photoCache = {}; // cache foto per id, diambil sesuai kebutuhan
+const KATEGORI_LABELS = {
+  Breakdown: 'Kerusakan Produksi',
+  BreakdownNonProduksi: 'Kerusakan Non-Produksi',
+  PM: 'Preventive Maintenance',
+  Improvement: 'Improvement',
+  Lainnya: 'Lainnya'
+};
+function kategoriLabel(k){ return KATEGORI_LABELS[k] || k || '-'; }
+const DEFAULT_DOWNTIME_KATEGORI = new Set(['Breakdown']);
+
+let reports = [];
+let photoCache = {};
 let expandedPhotoIds = new Set();
 let currentPhotos = [];
 let activeFilter = 'Semua';
@@ -743,7 +794,7 @@ function hitungDurasi(jamMulai, jamSelesai){
   const [h1,m1] = jamMulai.split(':').map(Number);
   const [h2,m2] = jamSelesai.split(':').map(Number);
   let menit = (h2*60+m2) - (h1*60+m1);
-  if(menit < 0) menit += 24*60; // lewat tengah malam
+  if(menit < 0) menit += 24*60;
   return menit;
 }
 
@@ -762,6 +813,10 @@ function updateDurasiPreview(){
 }
 $('f_jammulai').addEventListener('change', updateDurasiPreview);
 $('f_jamselesai').addEventListener('change', updateDurasiPreview);
+
+$('f_kategori').addEventListener('change', (e) => {
+  $('f_isdowntime').checked = DEFAULT_DOWNTIME_KATEGORI.has(e.target.value);
+});
 
 function toast(msg){
   const t = $('toast');
@@ -866,15 +921,12 @@ async function deletePhotos(id){
 
 async function genId(){
   const ymd = new Date().toISOString().slice(0,10).replace(/-/g,'');
-  // Coba beberapa kali sampai dapat ID yang belum dipakai siapa pun (menghindari tabrakan
-  // saat dua orang membuat laporan di waktu yang hampir bersamaan).
   for(let attempt = 0; attempt < 8; attempt++){
     const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
     const id = `LAP-${ymd}-${rand}`;
     const exists = await keyExists(id);
     if(!exists) return id;
   }
-  // Sangat tidak mungkin tercapai, tapi tetap sediakan fallback yang unik.
   return `LAP-${ymd}-${Date.now().toString(36).toUpperCase()}`;
 }
 
@@ -946,6 +998,8 @@ $('reportForm').addEventListener('submit', async (e) => {
     tanggal: $('f_tanggal').value,
     jenisMesin: $('f_jenismesin').value === 'Lainnya' ? ($('f_jenismesin_lain').value.trim() || 'Lainnya') : $('f_jenismesin').value,
     noMesin: $('f_nomesin').value.trim(),
+    kategori: $('f_kategori').value,
+    isDowntime: $('f_isdowntime').checked,
     mesin: $('f_mesin').value.trim(),
     jenis: $('f_jenis').value.trim(),
     teknisi: $('f_teknisi').value.trim(),
@@ -968,13 +1022,12 @@ $('reportForm').addEventListener('submit', async (e) => {
     return;
   }
   hideSyncError();
-  // ID unik per laporan, jadi aman menambahkan ke daftar lokal tanpa menimpa
-  // laporan lain yang mungkin sedang dibuat pengguna lain di saat bersamaan.
   reports = [report, ...reports];
   if(fotos.length) await savePhotos(id, fotos);
   e.target.reset();
   $('f_tanggal').value = new Date().toISOString().slice(0,10);
   $('jenisLainnyaWrap').style.display = 'none';
+  $('f_isdowntime').checked = true;
   updateDurasiPreview();
   currentPhotos = [];
   renderThumbs();
@@ -1007,8 +1060,6 @@ async function deleteReport(id){
 async function setStatus(id, status){
   if(!firebaseReady){ showSyncError(firebaseConfig.apiKey.startsWith('GANTI') ? 'no-storage' : 'error'); render(); return; }
   try{
-    // Ambil salinan terbaru dari laporan INI SAJA (bukan seluruh daftar) supaya
-    // perubahan status oleh pengguna lain di laporan berbeda tidak ikut tertimpa.
     const snap = await getDoc(doc(db, REPORTS_COL, id));
     const current = snap.exists() ? { ...snap.data(), id } : null;
     if(!current){ toast('Laporan sudah tidak ada (mungkin dihapus pengguna lain)'); await loadReports(); return; }
@@ -1049,6 +1100,7 @@ $('filters').addEventListener('click', (e) => {
   render();
 });
 $('filterMesin').addEventListener('change', render);
+$('filterKategori').addEventListener('change', render);
 $('filterDari').addEventListener('change', render);
 $('filterSampai').addEventListener('change', render);
 $('sortBy').addEventListener('change', render);
@@ -1065,11 +1117,14 @@ $('filterDariLihat').addEventListener('change', renderLihat);
 $('filterSampaiLihat').addEventListener('change', renderLihat);
 $('sortByLihat').addEventListener('change', renderLihat);
 
-function applyFilters({ statusFilter, mesinFilter, dari, sampai, sortBy }){
+function applyFilters({ statusFilter, mesinFilter, kategoriFilter, dari, sampai, sortBy }){
   let filtered = statusFilter === 'Semua' ? [...reports] : reports.filter(r => r.status === statusFilter);
 
   if(mesinFilter && mesinFilter !== 'Semua'){
     filtered = filtered.filter(r => r.jenisMesin === mesinFilter);
+  }
+  if(kategoriFilter && kategoriFilter !== 'Semua'){
+    filtered = filtered.filter(r => r.kategori === kategoriFilter);
   }
   if(dari) filtered = filtered.filter(r => r.tanggal && r.tanggal >= dari);
   if(sampai) filtered = filtered.filter(r => r.tanggal && r.tanggal <= sampai);
@@ -1104,6 +1159,10 @@ function buildCardHtml(r, readOnly){
           </div>
           <span class="badge ${r.status}">${statusLabel(r.status)}</span>
         </div>
+        <div class="row-actions" style="margin-top:6px;">
+          <span class="badge kategori">${escapeHtml(kategoriLabel(r.kategori))}</span>
+          ${r.isDowntime === false ? `<span class="badge nodowntime">⛔ Tidak dihitung downtime</span>` : ''}
+        </div>
         <div class="card-meta">
           <strong>Kerusakan:</strong> ${escapeHtml(r.jenis)}<br>
           <strong>Teknisi:</strong> ${escapeHtml(r.teknisi)}
@@ -1130,6 +1189,7 @@ function render(){
   const filtered = applyFilters({
     statusFilter: activeFilter,
     mesinFilter: $('filterMesin').value,
+    kategoriFilter: $('filterKategori').value,
     dari: $('filterDari').value,
     sampai: $('filterSampai').value,
     sortBy: $('sortBy').value
@@ -1140,13 +1200,15 @@ function render(){
     ? `<div class="empty">Tidak ada laporan yang cocok dengan filter ini.</div>`
     : filtered.map(r => buildCardHtml(r, false)).join('');
 
-  $('countNote').textContent = `${filtered.length} dari ${reports.length} laporan ditampilkan · Akumulasi waktu perbaikan: ${formatDurasi(filtered.reduce((sum,r)=> sum + (r.durasiMenit||0), 0))}`;
+  const downtimeMenit = filtered.filter(r => r.isDowntime !== false).reduce((sum,r)=> sum + (r.durasiMenit||0), 0);
+  $('countNote').textContent = `${filtered.length} dari ${reports.length} laporan ditampilkan · Downtime produksi: ${formatDurasi(downtimeMenit)}`;
 }
 
 function renderLihat(){
   const filtered = applyFilters({
     statusFilter: activeFilterLihat,
     mesinFilter: $('filterMesinLihat').value,
+    kategoriFilter: 'Semua',
     dari: $('filterDariLihat').value,
     sampai: $('filterSampaiLihat').value,
     sortBy: $('sortByLihat').value
@@ -1165,6 +1227,7 @@ function waMessage(r){
     `📋 *Laporan Kerusakan Elektrikal Mesin*`,
     `ID: ${r.id}`,
     `Tanggal: ${r.tanggal || '-'}`,
+    `Kategori: ${kategoriLabel(r.kategori)}`,
     `Jenis Mesin: ${r.jenisMesin || '-'}`,
     `No. Mesin: ${r.noMesin || '-'}`,
     `Mesin: ${r.mesin}`,
@@ -1176,7 +1239,7 @@ function waMessage(r){
   if(r.analisaKerusakan) lines.push(`Analisa Kerusakan: ${r.analisaKerusakan}`);
   if(r.penanganan) lines.push(`Penanganan: ${r.penanganan}`);
   if(r.sparePart) lines.push(`Spare Part: ${r.sparePart}`);
-  if(r.jamMulai && r.jamSelesai) lines.push(`Waktu: ${r.jamMulai}–${r.jamSelesai} (${formatDurasi(r.durasiMenit)})`);
+  if(r.jamMulai && r.jamSelesai) lines.push(`Waktu: ${r.jamMulai}–${r.jamSelesai} (${formatDurasi(r.durasiMenit)})${r.isDowntime === false ? ' — tidak dihitung downtime' : ''}`);
   if(r.fotoCount) lines.push(`(${r.fotoCount} foto terlampir di aplikasi)`);
   return lines.join('\n');
 }
@@ -1222,6 +1285,8 @@ async function exportExcelWithPhotos(ExcelJS){
   const columns = [
     { header: 'ID', key: 'id', width: 18 },
     { header: 'Tanggal', key: 'tanggal', width: 12 },
+    { header: 'Kategori', key: 'kategori', width: 20 },
+    { header: 'Termasuk Downtime?', key: 'isDowntime', width: 16 },
     { header: 'Jenis Mesin', key: 'jenisMesin', width: 14 },
     { header: 'No. Mesin', key: 'noMesin', width: 10 },
     { header: 'Nama Mesin', key: 'mesin', width: 20 },
@@ -1249,14 +1314,20 @@ async function exportExcelWithPhotos(ExcelJS){
   headerRow.height = 20;
 
   const fotoColStart = columns.findIndex(c => c.key === 'foto1');
-  let totalMenit = 0;
+  let totalDowntimeMenit = 0;
+  let totalNonDowntimeMenit = 0;
 
   for(const r of reports){
-    totalMenit += (r.durasiMenit || 0);
+    const isDowntime = r.isDowntime !== false;
+    if(isDowntime) totalDowntimeMenit += (r.durasiMenit || 0);
+    else totalNonDowntimeMenit += (r.durasiMenit || 0);
+
     const fotos = r.fotoCount ? await getPhotos(r.id) : [];
     const row = sheet.addRow({
       id: r.id,
       tanggal: r.tanggal || '',
+      kategori: kategoriLabel(r.kategori),
+      isDowntime: isDowntime ? 'Ya' : 'Tidak',
       jenisMesin: r.jenisMesin || '',
       noMesin: r.noMesin || '',
       mesin: r.mesin || '',
@@ -1285,14 +1356,15 @@ async function exportExcelWithPhotos(ExcelJS){
             ext: { width: 62, height: 62 }
           });
         }catch(imgErr){
-          // lewati foto ini kalau gagal ditanam, data lain tetap tersimpan
         }
       });
     }
   }
 
-  const totalRow = sheet.addRow({ id: 'Akumulasi Total Waktu Perbaikan', durasi: `${totalMenit} menit` });
-  totalRow.font = { bold: true };
+  const totalRow1 = sheet.addRow({ id: 'Akumulasi Downtime Produksi', durasi: `${totalDowntimeMenit} menit` });
+  totalRow1.font = { bold: true };
+  const totalRow2 = sheet.addRow({ id: 'Akumulasi Non-Downtime (Non-Produksi/PM/Improvement)', durasi: `${totalNonDowntimeMenit} menit` });
+  totalRow2.font = { bold: true, color: { argb: 'FF928C7E' } };
 
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -1303,10 +1375,13 @@ async function exportExcelWithPhotos(ExcelJS){
 async function exportExcelFallback(){
   const rowsArr = [];
   for(const r of reports){
+    const isDowntime = r.isDowntime !== false;
     rowsArr.push(`
     <tr>
       <td>${r.id}</td>
       <td>${r.tanggal || ''}</td>
+      <td>${escapeHtml(kategoriLabel(r.kategori))}</td>
+      <td>${isDowntime ? 'Ya' : 'Tidak'}</td>
       <td>${escapeHtml(r.jenisMesin || '')}</td>
       <td>${escapeHtml(r.noMesin || '')}</td>
       <td>${escapeHtml(r.mesin)}</td>
@@ -1325,11 +1400,17 @@ async function exportExcelFallback(){
   `);
   }
   const rows = rowsArr.join('');
-  const totalMenit = reports.reduce((sum,r)=> sum + (r.durasiMenit||0), 0);
+  const totalDowntimeMenit = reports.filter(r => r.isDowntime !== false).reduce((sum,r)=> sum + (r.durasiMenit||0), 0);
+  const totalNonDowntimeMenit = reports.filter(r => r.isDowntime === false).reduce((sum,r)=> sum + (r.durasiMenit||0), 0);
   const totalRow = `
     <tr>
-      <td colspan="10" style="text-align:right;font-weight:bold;">Akumulasi Total Waktu Perbaikan</td>
-      <td style="font-weight:bold;">${totalMenit} menit</td>
+      <td colspan="12" style="text-align:right;font-weight:bold;">Akumulasi Downtime Produksi</td>
+      <td style="font-weight:bold;">${totalDowntimeMenit} menit</td>
+      <td></td><td></td><td></td><td></td><td></td>
+    </tr>
+    <tr>
+      <td colspan="12" style="text-align:right;font-weight:bold;">Akumulasi Non-Downtime (Non-Produksi/PM/Improvement)</td>
+      <td style="font-weight:bold;">${totalNonDowntimeMenit} menit</td>
       <td></td><td></td><td></td><td></td><td></td>
     </tr>`;
 
@@ -1358,8 +1439,8 @@ async function exportExcelFallback(){
   <body>
     <table>
       <tr>
-        <th>ID</th><th>Tanggal</th><th>Jenis Mesin</th><th>No. Mesin</th><th>Nama Mesin</th><th>Jenis Kerusakan</th>
-        <th>Teknisi</th><th>Status</th><th>Jam Mulai</th><th>Jam Selesai</th><th>Durasi (menit)</th><th> Catatan</th><th>Analisa Kerusakan</th><th>Penanganan</th><th>Spare Part</th><th>Foto</th>
+        <th>ID</th><th>Tanggal</th><th>Kategori</th><th>Termasuk Downtime?</th><th>Jenis Mesin</th><th>No. Mesin</th><th>Nama Mesin</th><th>Jenis Kerusakan</th>
+        <th>Teknisi</th><th>Status</th><th>Jam Mulai</th><th>Jam Selesai</th><th>Durasi (menit)</th><th>Catatan</th><th>Analisa Kerusakan</th><th>Penanganan</th><th>Spare Part</th><th>Foto</th>
       </tr>
       ${rows}
       ${totalRow}
@@ -1376,19 +1457,25 @@ $('exportBtn').addEventListener('click', exportExcel);
 $('analyticsMonth').addEventListener('change', renderAnalytics);
 
 function renderAnalytics(){
-  const bulan = $('analyticsMonth').value; // format YYYY-MM
+  const bulan = $('analyticsMonth').value;
   const data = bulan ? reports.filter(r => (r.tanggal||'').startsWith(bulan)) : reports;
 
+  const downtimeData = data.filter(r => r.isDowntime !== false);
+  const pmData = data.filter(r => r.kategori === 'PM');
+  const improveData = data.filter(r => r.kategori === 'Improvement');
+
   const total = data.length;
-  const totalMenit = data.reduce((sum,r)=> sum + (r.durasiMenit||0), 0);
-  const rataRata = total ? Math.round(totalMenit/total) : 0;
+  const totalMenit = downtimeData.reduce((sum,r)=> sum + (r.durasiMenit||0), 0);
+  const rataRata = downtimeData.length ? Math.round(totalMenit/downtimeData.length) : 0;
 
   $('statTotal').textContent = total;
   $('statDowntime').textContent = formatDurasi(totalMenit);
-  $('statAvg').textContent = total ? formatDurasi(rataRata) : '-';
+  $('statAvg').textContent = downtimeData.length ? formatDurasi(rataRata) : '-';
+  $('statPM').textContent = pmData.length ? `${formatDurasi(pmData.reduce((s,r)=>s+(r.durasiMenit||0),0))} (${pmData.length}x)` : '-';
+  $('statImprove').textContent = improveData.length ? `${formatDurasi(improveData.reduce((s,r)=>s+(r.durasiMenit||0),0))} (${improveData.length}x)` : '-';
 
   const perMesin = {};
-  data.forEach(r => {
+  downtimeData.forEach(r => {
     const key = r.jenisMesin || 'Lainnya';
     if(!perMesin[key]) perMesin[key] = { jumlah:0, menit:0 };
     perMesin[key].jumlah += 1;
@@ -1400,7 +1487,7 @@ function renderAnalytics(){
 
   const maxJumlah = sortedMesin.length ? sortedMesin[0][1].jumlah : 1;
   $('breakdown').innerHTML = sortedMesin.length === 0
-    ? `<div class="empty">Belum ada data untuk periode ini.</div>`
+    ? `<div class="empty">Belum ada data downtime untuk periode ini.</div>`
     : sortedMesin.map(([nama, v]) => `
         <div class="bar-row">
           <div class="bar-row-top">
@@ -1412,13 +1499,10 @@ function renderAnalytics(){
       `).join('');
 }
 
-// set default date to today
 $('f_tanggal').value = new Date().toISOString().slice(0,10);
 $('analyticsMonth').value = new Date().toISOString().slice(0,7);
+$('f_isdowntime').checked = true;
 
-// Script ini dimuat sebagai <script type="module"> (dibutuhkan untuk import Firebase),
-// jadi fungsi yang dipanggil lewat atribut onclick/onchange di HTML harus diekspos
-// secara eksplisit ke window — kalau tidak, browser tidak akan menemukannya.
 window.showView = showView;
 window.loadReports = loadReports;
 window.togglePhotos = togglePhotos;
