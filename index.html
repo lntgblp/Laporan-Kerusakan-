@@ -505,7 +505,7 @@
         <input type="checkbox" id="f_isdowntime">
         <label style="margin:0;" for="f_isdowntime">Hitung sebagai downtime produksi</label>
       </div>
-      <p class="foot-note" id="downtimeHint" style="margin-top:-6px;">Otomatis tercentang untuk kategori "Kerusakan Mesin Produksi" — ubah manual kalau perlu.</p>
+      <p class="foot-note" id="downtimeHint" style="margin-top:-6px;">Otomatis tercentang untuk kategori "Kerusakan Mesin Produksi" — ubah manual kalau perlu. Hanya berlaku kalau Jenis Mesin dipilih dari daftar terdaftar (bukan "Lainnya").</p>
 
       <div class="grid">
         <div>
@@ -674,9 +674,9 @@
         <div class="card-title" id="statImprove" style="margin:0; font-size:14px;">-</div>
       </div>
     </div>
-    <p class="foot-note" style="margin-top:10px;">Kerusakan non-produksi, PM, dan Improvement dihitung terpisah dan TIDAK masuk ke angka Downtime Produksi di atas.</p>
+    <p class="foot-note" style="margin-top:10px;">Kerusakan non-produksi, PM, Improvement, dan laporan dengan mesin belum terdaftar (Jenis Mesin = "Lainnya") dihitung terpisah dan TIDAK masuk ke angka Downtime Produksi di atas.</p>
 
-    <h2 style="margin-top:20px; font-size:13px;">Rincian Downtime per Jenis Mesin</h2>
+    <h2 style="margin-top:20px; font-size:13px;">Rincian Downtime per Jenis Mesin <span style="font-size:11px;color:var(--muted);font-weight:400;">(hanya mesin terdaftar)</span></h2>
     <div id="breakdown"></div>
   </section>
   </div>
@@ -741,6 +741,19 @@ const KATEGORI_LABELS = {
 };
 function kategoriLabel(k){ return KATEGORI_LABELS[k] || k || '-'; }
 const DEFAULT_DOWNTIME_KATEGORI = new Set(['Breakdown']);
+
+// Mesin yang "terdaftar" — hanya mesin dalam daftar ini yang dihitung ke Downtime Produksi.
+// Kalau ada mesin baru yang perlu dihitung downtime-nya, tambahkan ke daftar dropdown
+// "Jenis Mesin" di form DAN ke daftar REGISTERED_MACHINES ini (harus sama persis).
+const REGISTERED_MACHINES = ['Moulding', 'Filling', 'Autoline', 'MCA', 'M50'];
+function isCountedDowntime(r){
+  return r.isDowntime !== false && REGISTERED_MACHINES.includes(r.jenisMesin);
+}
+function downtimeBadgeText(r){
+  if(r.isDowntime === false) return '⛔ Tidak dihitung downtime';
+  if(!REGISTERED_MACHINES.includes(r.jenisMesin)) return '⛔ Tidak dihitung downtime (mesin belum terdaftar)';
+  return null;
+}
 
 let reports = [];
 let photoCache = {};
@@ -1150,6 +1163,7 @@ function buildCardHtml(r, readOnly){
           <a href="${waLink(r)}" target="_blank" class="btn small secondary" style="text-decoration:none;">💬 WA</a>
           <button class="btn small secondary" onclick="deleteReport('${r.id}')">Hapus</button>
         </div>`;
+  const badgeText = downtimeBadgeText(r);
   return `
       <div class="card">
         <div class="card-top">
@@ -1161,7 +1175,7 @@ function buildCardHtml(r, readOnly){
         </div>
         <div class="row-actions" style="margin-top:6px;">
           <span class="badge kategori">${escapeHtml(kategoriLabel(r.kategori))}</span>
-          ${r.isDowntime === false ? `<span class="badge nodowntime">⛔ Tidak dihitung downtime</span>` : ''}
+          ${badgeText ? `<span class="badge nodowntime">${badgeText}</span>` : ''}
         </div>
         <div class="card-meta">
           <strong>Kerusakan:</strong> ${escapeHtml(r.jenis)}<br>
@@ -1200,8 +1214,8 @@ function render(){
     ? `<div class="empty">Tidak ada laporan yang cocok dengan filter ini.</div>`
     : filtered.map(r => buildCardHtml(r, false)).join('');
 
-  const downtimeMenit = filtered.filter(r => r.isDowntime !== false).reduce((sum,r)=> sum + (r.durasiMenit||0), 0);
-  $('countNote').textContent = `${filtered.length} dari ${reports.length} laporan ditampilkan · Downtime produksi: ${formatDurasi(downtimeMenit)}`;
+  const downtimeMenit = filtered.filter(isCountedDowntime).reduce((sum,r)=> sum + (r.durasiMenit||0), 0);
+  $('countNote').textContent = `${filtered.length} dari ${reports.length} laporan ditampilkan · Downtime produksi (mesin terdaftar): ${formatDurasi(downtimeMenit)}`;
 }
 
 function renderLihat(){
@@ -1223,6 +1237,7 @@ function renderLihat(){
 }
 
 function waMessage(r){
+  const badgeText = downtimeBadgeText(r);
   const lines = [
     `📋 *Laporan Kerja Utility *`,
     `ID: ${r.id}`,
@@ -1239,7 +1254,7 @@ function waMessage(r){
   if(r.analisaKerusakan) lines.push(`Analisa Kerusakan: ${r.analisaKerusakan}`);
   if(r.penanganan) lines.push(`Penanganan: ${r.penanganan}`);
   if(r.sparePart) lines.push(`Spare Part: ${r.sparePart}`);
-  if(r.jamMulai && r.jamSelesai) lines.push(`Waktu: ${r.jamMulai}–${r.jamSelesai} (${formatDurasi(r.durasiMenit)})${r.isDowntime === false ? ' — tidak dihitung downtime' : ''}`);
+  if(r.jamMulai && r.jamSelesai) lines.push(`Waktu: ${r.jamMulai}–${r.jamSelesai} (${formatDurasi(r.durasiMenit)})${badgeText ? ' — ' + badgeText.replace('⛔ ', '') : ''}`);
   if(r.fotoCount) lines.push(`(${r.fotoCount} foto terlampir di aplikasi)`);
   return lines.join('\n');
 }
@@ -1286,7 +1301,7 @@ async function exportExcelWithPhotos(ExcelJS){
     { header: 'ID', key: 'id', width: 18 },
     { header: 'Tanggal', key: 'tanggal', width: 12 },
     { header: 'Kategori', key: 'kategori', width: 20 },
-    { header: 'Termasuk Downtime?', key: 'isDowntime', width: 16 },
+    { header: 'Termasuk Downtime?', key: 'isDowntime', width: 24 },
     { header: 'Jenis Mesin', key: 'jenisMesin', width: 14 },
     { header: 'No. Mesin', key: 'noMesin', width: 10 },
     { header: 'Nama Mesin', key: 'mesin', width: 20 },
@@ -1318,16 +1333,20 @@ async function exportExcelWithPhotos(ExcelJS){
   let totalNonDowntimeMenit = 0;
 
   for(const r of reports){
-    const isDowntime = r.isDowntime !== false;
-    if(isDowntime) totalDowntimeMenit += (r.durasiMenit || 0);
+    const counted = isCountedDowntime(r);
+    if(counted) totalDowntimeMenit += (r.durasiMenit || 0);
     else totalNonDowntimeMenit += (r.durasiMenit || 0);
+
+    let isDowntimeLabel = 'Ya';
+    if(r.isDowntime === false) isDowntimeLabel = 'Tidak';
+    else if(!counted) isDowntimeLabel = 'Tidak (mesin belum terdaftar)';
 
     const fotos = r.fotoCount ? await getPhotos(r.id) : [];
     const row = sheet.addRow({
       id: r.id,
       tanggal: r.tanggal || '',
       kategori: kategoriLabel(r.kategori),
-      isDowntime: isDowntime ? 'Ya' : 'Tidak',
+      isDowntime: isDowntimeLabel,
       jenisMesin: r.jenisMesin || '',
       noMesin: r.noMesin || '',
       mesin: r.mesin || '',
@@ -1361,9 +1380,9 @@ async function exportExcelWithPhotos(ExcelJS){
     }
   }
 
-  const totalRow1 = sheet.addRow({ id: 'Akumulasi Downtime Produksi', durasi: `${totalDowntimeMenit} menit` });
+  const totalRow1 = sheet.addRow({ id: 'Akumulasi Downtime Produksi (mesin terdaftar)', durasi: `${totalDowntimeMenit} menit` });
   totalRow1.font = { bold: true };
-  const totalRow2 = sheet.addRow({ id: 'Akumulasi Non-Downtime (Non-Produksi/PM/Improvement)', durasi: `${totalNonDowntimeMenit} menit` });
+  const totalRow2 = sheet.addRow({ id: 'Akumulasi Non-Downtime (Non-Produksi/PM/Improvement/mesin belum terdaftar)', durasi: `${totalNonDowntimeMenit} menit` });
   totalRow2.font = { bold: true, color: { argb: 'FF928C7E' } };
 
   const buffer = await workbook.xlsx.writeBuffer();
@@ -1375,13 +1394,16 @@ async function exportExcelWithPhotos(ExcelJS){
 async function exportExcelFallback(){
   const rowsArr = [];
   for(const r of reports){
-    const isDowntime = r.isDowntime !== false;
+    const counted = isCountedDowntime(r);
+    let isDowntimeLabel = 'Ya';
+    if(r.isDowntime === false) isDowntimeLabel = 'Tidak';
+    else if(!counted) isDowntimeLabel = 'Tidak (mesin belum terdaftar)';
     rowsArr.push(`
     <tr>
       <td>${r.id}</td>
       <td>${r.tanggal || ''}</td>
       <td>${escapeHtml(kategoriLabel(r.kategori))}</td>
-      <td>${isDowntime ? 'Ya' : 'Tidak'}</td>
+      <td>${isDowntimeLabel}</td>
       <td>${escapeHtml(r.jenisMesin || '')}</td>
       <td>${escapeHtml(r.noMesin || '')}</td>
       <td>${escapeHtml(r.mesin)}</td>
@@ -1400,16 +1422,16 @@ async function exportExcelFallback(){
   `);
   }
   const rows = rowsArr.join('');
-  const totalDowntimeMenit = reports.filter(r => r.isDowntime !== false).reduce((sum,r)=> sum + (r.durasiMenit||0), 0);
-  const totalNonDowntimeMenit = reports.filter(r => r.isDowntime === false).reduce((sum,r)=> sum + (r.durasiMenit||0), 0);
+  const totalDowntimeMenit = reports.filter(isCountedDowntime).reduce((sum,r)=> sum + (r.durasiMenit||0), 0);
+  const totalNonDowntimeMenit = reports.filter(r => !isCountedDowntime(r)).reduce((sum,r)=> sum + (r.durasiMenit||0), 0);
   const totalRow = `
     <tr>
-      <td colspan="12" style="text-align:right;font-weight:bold;">Akumulasi Downtime Produksi</td>
+      <td colspan="12" style="text-align:right;font-weight:bold;">Akumulasi Downtime Produksi (mesin terdaftar)</td>
       <td style="font-weight:bold;">${totalDowntimeMenit} menit</td>
       <td></td><td></td><td></td><td></td><td></td>
     </tr>
     <tr>
-      <td colspan="12" style="text-align:right;font-weight:bold;">Akumulasi Non-Downtime (Non-Produksi/PM/Improvement)</td>
+      <td colspan="12" style="text-align:right;font-weight:bold;">Akumulasi Non-Downtime (Non-Produksi/PM/Improvement/mesin belum terdaftar)</td>
       <td style="font-weight:bold;">${totalNonDowntimeMenit} menit</td>
       <td></td><td></td><td></td><td></td><td></td>
     </tr>`;
@@ -1460,7 +1482,7 @@ function renderAnalytics(){
   const bulan = $('analyticsMonth').value;
   const data = bulan ? reports.filter(r => (r.tanggal||'').startsWith(bulan)) : reports;
 
-  const downtimeData = data.filter(r => r.isDowntime !== false);
+  const downtimeData = data.filter(isCountedDowntime);
   const pmData = data.filter(r => r.kategori === 'PM');
   const improveData = data.filter(r => r.kategori === 'Improvement');
 
