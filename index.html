@@ -216,6 +216,9 @@
   .badge.Selesai{background:rgba(76,154,106,.15);color:var(--ok);border:1px solid var(--ok);}
   .badge.kategori{background:rgba(146,140,127,.12);color:var(--muted);border:1px solid var(--border);}
   .badge.nodowntime{background:rgba(76,154,106,.12);color:var(--ok);border:1px solid var(--ok);}
+  .badge.pending{background:rgba(140,132,120,.18);color:var(--wait);border:1px solid var(--wait);}
+  .badge.approved{background:rgba(76,154,106,.15);color:var(--ok);border:1px solid var(--ok);}
+  .badge.rejected{background:rgba(232,92,51,.15);color:var(--danger);border:1px solid var(--danger);}
   .card-meta{
     font-size:12.5px;
     color:var(--muted);
@@ -406,7 +409,7 @@
       <button type="button" class="menu-card" onclick="openRekap()">
         <div class="icon">📊</div>
         <h3>Rekap &amp; Analisis <span style="font-size:12px;">🔒</span></h3>
-        <p>Kelola status, hapus laporan, export Excel, dan lihat statistik bulanan. Dilindungi password.</p>
+        <p>Kelola status, verifikasi Chief/Manajer, hapus laporan, export Excel, dan lihat statistik bulanan. Dilindungi password.</p>
         <div class="menu-stats">
           <span class="menu-stat" id="menuStatTotal">0 laporan</span>
           <span class="menu-stat" id="menuStatOpen">0 dalam proses</span>
@@ -505,7 +508,7 @@
         <input type="checkbox" id="f_isdowntime">
         <label style="margin:0;" for="f_isdowntime">Hitung sebagai downtime produksi</label>
       </div>
-      <p class="foot-note" id="downtimeHint" style="margin-top:-6px;">Otomatis tercentang untuk kategori "Kerusakan Mesin Produksi" — ubah manual kalau perlu. Hanya berlaku kalau Jenis Mesin dipilih dari daftar terdaftar (bukan "Lainnya").</p>
+      <p class="foot-note" id="downtimeHint" style="margin-top:-6px;">Otomatis tercentang untuk kategori "Kerusakan Mesin Produksi" — ubah manual kalau perlu. Hanya berlaku kalau Jenis Mesin dipilih dari daftar terdaftar (bukan "Lainnya"). Catatan: sekalipun tercentang, jam/durasi downtime baru resmi masuk ke rekap perhitungan setelah disetujui (ACC) oleh Chief dan Manajer di menu Rekap &amp; Analisis.</p>
 
       <div class="grid">
         <div>
@@ -624,7 +627,15 @@
           <option value="mesin">Jenis Mesin (A-Z)</option>
         </select>
       </div>
-      <div></div>
+      <div>
+        <label>Filter Verifikasi Downtime</label>
+        <select id="filterVerifikasi">
+          <option value="Semua">Semua</option>
+          <option value="Lengkap">Lengkap (ACC Chief &amp; Manajer)</option>
+          <option value="Menunggu">Menunggu Verifikasi</option>
+          <option value="Ditolak">Ada yang Ditolak</option>
+        </select>
+      </div>
     </div>
     <div class="grid" style="margin-bottom:14px;">
       <div>
@@ -650,7 +661,7 @@
         <div class="card-title" id="statTotal" style="margin:0;">0</div>
       </div>
       <div class="card" style="margin-bottom:0;">
-        <div class="card-meta" style="margin:0;">Total Downtime Produksi</div>
+        <div class="card-meta" style="margin:0;">Total Downtime Produksi (Terverifikasi)</div>
         <div class="card-title" id="statDowntime" style="margin:0; font-size:14px;">0 menit</div>
       </div>
     </div>
@@ -674,9 +685,16 @@
         <div class="card-title" id="statImprove" style="margin:0; font-size:14px;">-</div>
       </div>
     </div>
-    <p class="foot-note" style="margin-top:10px;">Kerusakan non-produksi, PM, Improvement, dan laporan dengan mesin belum terdaftar (Jenis Mesin = "Lainnya") dihitung terpisah dan TIDAK masuk ke angka Downtime Produksi di atas.</p>
+    <div class="grid" style="margin-top:12px;">
+      <div class="card" style="margin-bottom:0;">
+        <div class="card-meta" style="margin:0;">Menunggu Verifikasi (belum ACC lengkap)</div>
+        <div class="card-title" id="statPendingVerif" style="margin:0; font-size:14px;">-</div>
+      </div>
+      <div></div>
+    </div>
+    <p class="foot-note" style="margin-top:10px;">Kerusakan non-produksi, PM, Improvement, laporan dengan mesin belum terdaftar (Jenis Mesin = "Lainnya"), dan laporan yang <strong>belum disetujui (ACC) oleh Chief &amp; Manajer</strong> dihitung terpisah dan TIDAK masuk ke angka Downtime Produksi di atas.</p>
 
-    <h2 style="margin-top:20px; font-size:13px;">Rincian Downtime per Jenis Mesin <span style="font-size:11px;color:var(--muted);font-weight:400;">(hanya mesin terdaftar)</span></h2>
+    <h2 style="margin-top:20px; font-size:13px;">Rincian Downtime per Jenis Mesin <span style="font-size:11px;color:var(--muted);font-weight:400;">(hanya mesin terdaftar &amp; terverifikasi lengkap)</span></h2>
     <div id="breakdown"></div>
   </section>
   </div>
@@ -746,12 +764,35 @@ const DEFAULT_DOWNTIME_KATEGORI = new Set(['Breakdown']);
 // Kalau ada mesin baru yang perlu dihitung downtime-nya, tambahkan ke daftar dropdown
 // "Jenis Mesin" di form DAN ke daftar REGISTERED_MACHINES ini (harus sama persis).
 const REGISTERED_MACHINES = ['Moulding', 'Filling', 'Autoline', 'MCA', 'M50'];
+
+// ---- Verifikasi Chief & Manajer ----
+// Setiap laporan baru dimulai dengan status verifikasi 'pending' untuk Chief dan Manajer.
+// Jam/durasi downtime HANYA dihitung ke rekap & analisis kalau KEDUA verifikasi sudah 'approved'.
+function verifLabel(s){
+  if(s === 'approved') return '✅ Disetujui';
+  if(s === 'rejected') return '❌ Ditolak';
+  return '⏳ Menunggu';
+}
+function verifClass(s){
+  if(s === 'approved') return 'approved';
+  if(s === 'rejected') return 'rejected';
+  return 'pending';
+}
+function verifBadgesHtml(r){
+  const chief = r.verifChief || 'pending';
+  const manager = r.verifManager || 'pending';
+  return `<span class="badge ${verifClass(chief)}">Chief: ${verifLabel(chief)}</span> <span class="badge ${verifClass(manager)}">Manajer: ${verifLabel(manager)}</span>`;
+}
+function isFullyVerified(r){
+  return r.verifChief === 'approved' && r.verifManager === 'approved';
+}
 function isCountedDowntime(r){
-  return r.isDowntime !== false && REGISTERED_MACHINES.includes(r.jenisMesin);
+  return r.isDowntime !== false && REGISTERED_MACHINES.includes(r.jenisMesin) && isFullyVerified(r);
 }
 function downtimeBadgeText(r){
   if(r.isDowntime === false) return '⛔ Tidak dihitung downtime';
   if(!REGISTERED_MACHINES.includes(r.jenisMesin)) return '⛔ Tidak dihitung downtime (mesin belum terdaftar)';
+  if(!isFullyVerified(r)) return '⏳ Belum masuk hitungan — menunggu ACC Chief & Manajer';
   return null;
 }
 
@@ -1025,7 +1066,13 @@ $('reportForm').addEventListener('submit', async (e) => {
     durasiMenit: hitungDurasi($('f_jammulai').value, $('f_jamselesai').value),
     status: $('f_status').value,
     fotoCount: fotos.length,
-    dibuat: new Date().toISOString()
+    dibuat: new Date().toISOString(),
+    verifChief: 'pending',
+    verifChiefBy: null,
+    verifChiefAt: null,
+    verifManager: 'pending',
+    verifManagerBy: null,
+    verifManagerAt: null
   };
   const saved = await saveReport(report);
   submitBtn.disabled = false;
@@ -1048,7 +1095,7 @@ $('reportForm').addEventListener('submit', async (e) => {
   renderLihat();
   renderAnalytics();
   updateMenuStats();
-  toast('Laporan tersimpan');
+  toast('Laporan tersimpan — menunggu verifikasi Chief & Manajer untuk masuk hitungan downtime');
 
   $('waBtn').href = waLink(report);
   $('waBanner').style.display = 'block';
@@ -1092,6 +1139,45 @@ async function setStatus(id, status){
   updateMenuStats();
 }
 
+// role: 'verifChief' atau 'verifManager'; status: 'approved' atau 'rejected'
+async function setVerif(id, role, status){
+  if(!firebaseReady){ showSyncError(firebaseConfig.apiKey.startsWith('GANTI') ? 'no-storage' : 'error'); render(); return; }
+  const roleLabel = role === 'verifChief' ? 'Chief' : 'Manajer';
+  let verifiedBy = null;
+  if(status === 'approved'){
+    verifiedBy = prompt(`Nama ${roleLabel} yang memverifikasi & menyetujui downtime ini:`);
+    if(verifiedBy === null) return;
+    if(!verifiedBy.trim()){ toast('Nama wajib diisi untuk menyetujui'); return; }
+  } else {
+    if(!confirm(`Tolak verifikasi ${roleLabel} untuk laporan ini? Downtime tidak akan masuk hitungan.`)) return;
+  }
+  try{
+    const snap = await getDoc(doc(db, REPORTS_COL, id));
+    const current = snap.exists() ? { ...snap.data(), id } : null;
+    if(!current){ toast('Laporan sudah tidak ada (mungkin dihapus pengguna lain)'); await loadReports(); return; }
+    current[role] = status;
+    current[role + 'By'] = status === 'approved' ? verifiedBy.trim() : null;
+    current[role + 'At'] = new Date().toISOString();
+    const saved = await saveReport(current);
+    if(!saved){ showSyncError('error'); toast('Gagal terhubung ke server'); render(); return; }
+    hideSyncError();
+    const local = reports.find(r => r.id === id);
+    if(local){
+      local[role] = current[role];
+      local[role + 'By'] = current[role + 'By'];
+      local[role + 'At'] = current[role + 'At'];
+    }
+    toast(status === 'approved' ? `Disetujui oleh ${roleLabel}` : `Ditolak oleh ${roleLabel}`);
+  }catch(e){
+    showSyncError('error');
+    toast('Gagal terhubung ke server');
+  }
+  render();
+  renderLihat();
+  renderAnalytics();
+  updateMenuStats();
+}
+
 async function togglePhotos(id){
   if(expandedPhotoIds.has(id)){
     expandedPhotoIds.delete(id);
@@ -1114,6 +1200,7 @@ $('filters').addEventListener('click', (e) => {
 });
 $('filterMesin').addEventListener('change', render);
 $('filterKategori').addEventListener('change', render);
+$('filterVerifikasi').addEventListener('change', render);
 $('filterDari').addEventListener('change', render);
 $('filterSampai').addEventListener('change', render);
 $('sortBy').addEventListener('change', render);
@@ -1130,7 +1217,7 @@ $('filterDariLihat').addEventListener('change', renderLihat);
 $('filterSampaiLihat').addEventListener('change', renderLihat);
 $('sortByLihat').addEventListener('change', renderLihat);
 
-function applyFilters({ statusFilter, mesinFilter, kategoriFilter, dari, sampai, sortBy }){
+function applyFilters({ statusFilter, mesinFilter, kategoriFilter, verifikasiFilter, dari, sampai, sortBy }){
   let filtered = statusFilter === 'Semua' ? [...reports] : reports.filter(r => r.status === statusFilter);
 
   if(mesinFilter && mesinFilter !== 'Semua'){
@@ -1138,6 +1225,16 @@ function applyFilters({ statusFilter, mesinFilter, kategoriFilter, dari, sampai,
   }
   if(kategoriFilter && kategoriFilter !== 'Semua'){
     filtered = filtered.filter(r => r.kategori === kategoriFilter);
+  }
+  if(verifikasiFilter && verifikasiFilter !== 'Semua'){
+    filtered = filtered.filter(r => {
+      const chief = r.verifChief || 'pending';
+      const manager = r.verifManager || 'pending';
+      if(verifikasiFilter === 'Lengkap') return chief === 'approved' && manager === 'approved';
+      if(verifikasiFilter === 'Ditolak') return chief === 'rejected' || manager === 'rejected';
+      if(verifikasiFilter === 'Menunggu') return (chief === 'pending' || manager === 'pending') && chief !== 'rejected' && manager !== 'rejected';
+      return true;
+    });
   }
   if(dari) filtered = filtered.filter(r => r.tanggal && r.tanggal >= dari);
   if(sampai) filtered = filtered.filter(r => r.tanggal && r.tanggal <= sampai);
@@ -1163,6 +1260,13 @@ function buildCardHtml(r, readOnly){
           <a href="${waLink(r)}" target="_blank" class="btn small secondary" style="text-decoration:none;">💬 WA</a>
           <button class="btn small secondary" onclick="deleteReport('${r.id}')">Hapus</button>
         </div>`;
+  const verifActionsHtml = readOnly ? '' : `
+        <div class="row-actions">
+          <button class="btn small secondary" onclick="setVerif('${r.id}','verifChief','approved')" ${r.verifChief==='approved'?'disabled':''}>✅ ACC Chief</button>
+          <button class="btn small secondary" onclick="setVerif('${r.id}','verifChief','rejected')" ${r.verifChief==='rejected'?'disabled':''}>❌ Tolak (Chief)</button>
+          <button class="btn small secondary" onclick="setVerif('${r.id}','verifManager','approved')" ${r.verifManager==='approved'?'disabled':''}>✅ ACC Manajer</button>
+          <button class="btn small secondary" onclick="setVerif('${r.id}','verifManager','rejected')" ${r.verifManager==='rejected'?'disabled':''}>❌ Tolak (Manajer)</button>
+        </div>`;
   const badgeText = downtimeBadgeText(r);
   return `
       <div class="card">
@@ -1177,6 +1281,9 @@ function buildCardHtml(r, readOnly){
           <span class="badge kategori">${escapeHtml(kategoriLabel(r.kategori))}</span>
           ${badgeText ? `<span class="badge nodowntime">${badgeText}</span>` : ''}
         </div>
+        <div class="row-actions" style="margin-top:4px;">
+          ${verifBadgesHtml(r)}
+        </div>
         <div class="card-meta">
           <strong>Kerusakan:</strong> ${escapeHtml(r.jenis)}<br>
           <strong>Teknisi:</strong> ${escapeHtml(r.teknisi)}
@@ -1185,6 +1292,8 @@ function buildCardHtml(r, readOnly){
           ${r.penanganan ? '<br><strong>Penanganan:</strong> ' + escapeHtml(r.penanganan) : ''}
           ${r.sparePart ? '<br><strong>Spare Part:</strong> ' + escapeHtml(r.sparePart) : ''}
           ${(r.jamMulai && r.jamSelesai) ? `<br><strong>Waktu:</strong> ${r.jamMulai}–${r.jamSelesai} (${formatDurasi(r.durasiMenit)})` : ''}
+          ${r.verifChief==='approved' ? `<br><strong>ACC Chief:</strong> ${escapeHtml(r.verifChiefBy||'-')}` : ''}
+          ${r.verifManager==='approved' ? `<br><strong>ACC Manajer:</strong> ${escapeHtml(r.verifManagerBy||'-')}` : ''}
         </div>
         ${r.fotoCount ? `
           <div class="row-actions" style="margin-top:8px;">
@@ -1194,6 +1303,7 @@ function buildCardHtml(r, readOnly){
           </div>
           ${expandedPhotoIds.has(r.id) ? `<div class="card-photos">${(photoCache[r.id]||[]).map(f=>`<img src="${f}">`).join('')}</div>` : ''}
         ` : ''}
+        ${verifActionsHtml}
         ${actionsHtml}
       </div>
   `;
@@ -1204,6 +1314,7 @@ function render(){
     statusFilter: activeFilter,
     mesinFilter: $('filterMesin').value,
     kategoriFilter: $('filterKategori').value,
+    verifikasiFilter: $('filterVerifikasi').value,
     dari: $('filterDari').value,
     sampai: $('filterSampai').value,
     sortBy: $('sortBy').value
@@ -1215,7 +1326,7 @@ function render(){
     : filtered.map(r => buildCardHtml(r, false)).join('');
 
   const downtimeMenit = filtered.filter(isCountedDowntime).reduce((sum,r)=> sum + (r.durasiMenit||0), 0);
-  $('countNote').textContent = `${filtered.length} dari ${reports.length} laporan ditampilkan · Downtime produksi (mesin terdaftar): ${formatDurasi(downtimeMenit)}`;
+  $('countNote').textContent = `${filtered.length} dari ${reports.length} laporan ditampilkan · Downtime produksi (mesin terdaftar & terverifikasi): ${formatDurasi(downtimeMenit)}`;
 }
 
 function renderLihat(){
@@ -1223,6 +1334,7 @@ function renderLihat(){
     statusFilter: activeFilterLihat,
     mesinFilter: $('filterMesinLihat').value,
     kategoriFilter: 'Semua',
+    verifikasiFilter: 'Semua',
     dari: $('filterDariLihat').value,
     sampai: $('filterSampaiLihat').value,
     sortBy: $('sortByLihat').value
@@ -1254,7 +1366,9 @@ function waMessage(r){
   if(r.analisaKerusakan) lines.push(`Analisa Kerusakan: ${r.analisaKerusakan}`);
   if(r.penanganan) lines.push(`Penanganan: ${r.penanganan}`);
   if(r.sparePart) lines.push(`Spare Part: ${r.sparePart}`);
-  if(r.jamMulai && r.jamSelesai) lines.push(`Waktu: ${r.jamMulai}–${r.jamSelesai} (${formatDurasi(r.durasiMenit)})${badgeText ? ' — ' + badgeText.replace('⛔ ', '') : ''}`);
+  if(r.jamMulai && r.jamSelesai) lines.push(`Waktu: ${r.jamMulai}–${r.jamSelesai} (${formatDurasi(r.durasiMenit)})${badgeText ? ' — ' + badgeText.replace('⛔ ', '').replace('⏳ ', '') : ''}`);
+  lines.push(`Verifikasi Chief: ${verifLabel(r.verifChief || 'pending')}${r.verifChiefBy ? ' oleh ' + r.verifChiefBy : ''}`);
+  lines.push(`Verifikasi Manajer: ${verifLabel(r.verifManager || 'pending')}${r.verifManagerBy ? ' oleh ' + r.verifManagerBy : ''}`);
   if(r.fotoCount) lines.push(`(${r.fotoCount} foto terlampir di aplikasi)`);
   return lines.join('\n');
 }
@@ -1301,7 +1415,11 @@ async function exportExcelWithPhotos(ExcelJS){
     { header: 'ID', key: 'id', width: 18 },
     { header: 'Tanggal', key: 'tanggal', width: 12 },
     { header: 'Kategori', key: 'kategori', width: 20 },
-    { header: 'Termasuk Downtime?', key: 'isDowntime', width: 24 },
+    { header: 'Termasuk Downtime?', key: 'isDowntime', width: 26 },
+    { header: 'Verifikasi Chief', key: 'verifChief', width: 16 },
+    { header: 'ACC Chief Oleh', key: 'verifChiefBy', width: 16 },
+    { header: 'Verifikasi Manajer', key: 'verifManager', width: 18 },
+    { header: 'ACC Manajer Oleh', key: 'verifManagerBy', width: 16 },
     { header: 'Jenis Mesin', key: 'jenisMesin', width: 14 },
     { header: 'No. Mesin', key: 'noMesin', width: 10 },
     { header: 'Nama Mesin', key: 'mesin', width: 20 },
@@ -1339,7 +1457,8 @@ async function exportExcelWithPhotos(ExcelJS){
 
     let isDowntimeLabel = 'Ya';
     if(r.isDowntime === false) isDowntimeLabel = 'Tidak';
-    else if(!counted) isDowntimeLabel = 'Tidak (mesin belum terdaftar)';
+    else if(!REGISTERED_MACHINES.includes(r.jenisMesin)) isDowntimeLabel = 'Tidak (mesin belum terdaftar)';
+    else if(!isFullyVerified(r)) isDowntimeLabel = 'Tidak (menunggu verifikasi)';
 
     const fotos = r.fotoCount ? await getPhotos(r.id) : [];
     const row = sheet.addRow({
@@ -1347,6 +1466,10 @@ async function exportExcelWithPhotos(ExcelJS){
       tanggal: r.tanggal || '',
       kategori: kategoriLabel(r.kategori),
       isDowntime: isDowntimeLabel,
+      verifChief: verifLabel(r.verifChief || 'pending'),
+      verifChiefBy: r.verifChiefBy || '',
+      verifManager: verifLabel(r.verifManager || 'pending'),
+      verifManagerBy: r.verifManagerBy || '',
       jenisMesin: r.jenisMesin || '',
       noMesin: r.noMesin || '',
       mesin: r.mesin || '',
@@ -1380,9 +1503,9 @@ async function exportExcelWithPhotos(ExcelJS){
     }
   }
 
-  const totalRow1 = sheet.addRow({ id: 'Akumulasi Downtime Produksi (mesin terdaftar)', durasi: `${totalDowntimeMenit} menit` });
+  const totalRow1 = sheet.addRow({ id: 'Akumulasi Downtime Produksi (mesin terdaftar & terverifikasi lengkap)', durasi: `${totalDowntimeMenit} menit` });
   totalRow1.font = { bold: true };
-  const totalRow2 = sheet.addRow({ id: 'Akumulasi Non-Downtime (Non-Produksi/PM/Improvement/mesin belum terdaftar)', durasi: `${totalNonDowntimeMenit} menit` });
+  const totalRow2 = sheet.addRow({ id: 'Akumulasi Non-Downtime (Non-Produksi/PM/Improvement/mesin belum terdaftar/belum terverifikasi)', durasi: `${totalNonDowntimeMenit} menit` });
   totalRow2.font = { bold: true, color: { argb: 'FF928C7E' } };
 
   const buffer = await workbook.xlsx.writeBuffer();
@@ -1397,13 +1520,18 @@ async function exportExcelFallback(){
     const counted = isCountedDowntime(r);
     let isDowntimeLabel = 'Ya';
     if(r.isDowntime === false) isDowntimeLabel = 'Tidak';
-    else if(!counted) isDowntimeLabel = 'Tidak (mesin belum terdaftar)';
+    else if(!REGISTERED_MACHINES.includes(r.jenisMesin)) isDowntimeLabel = 'Tidak (mesin belum terdaftar)';
+    else if(!isFullyVerified(r)) isDowntimeLabel = 'Tidak (menunggu verifikasi)';
     rowsArr.push(`
     <tr>
       <td>${r.id}</td>
       <td>${r.tanggal || ''}</td>
       <td>${escapeHtml(kategoriLabel(r.kategori))}</td>
       <td>${isDowntimeLabel}</td>
+      <td>${verifLabel(r.verifChief || 'pending')}</td>
+      <td>${escapeHtml(r.verifChiefBy || '')}</td>
+      <td>${verifLabel(r.verifManager || 'pending')}</td>
+      <td>${escapeHtml(r.verifManagerBy || '')}</td>
       <td>${escapeHtml(r.jenisMesin || '')}</td>
       <td>${escapeHtml(r.noMesin || '')}</td>
       <td>${escapeHtml(r.mesin)}</td>
@@ -1426,12 +1554,12 @@ async function exportExcelFallback(){
   const totalNonDowntimeMenit = reports.filter(r => !isCountedDowntime(r)).reduce((sum,r)=> sum + (r.durasiMenit||0), 0);
   const totalRow = `
     <tr>
-      <td colspan="12" style="text-align:right;font-weight:bold;">Akumulasi Downtime Produksi (mesin terdaftar)</td>
+      <td colspan="16" style="text-align:right;font-weight:bold;">Akumulasi Downtime Produksi (mesin terdaftar &amp; terverifikasi lengkap)</td>
       <td style="font-weight:bold;">${totalDowntimeMenit} menit</td>
       <td></td><td></td><td></td><td></td><td></td>
     </tr>
     <tr>
-      <td colspan="12" style="text-align:right;font-weight:bold;">Akumulasi Non-Downtime (Non-Produksi/PM/Improvement/mesin belum terdaftar)</td>
+      <td colspan="16" style="text-align:right;font-weight:bold;">Akumulasi Non-Downtime (Non-Produksi/PM/Improvement/mesin belum terdaftar/belum terverifikasi)</td>
       <td style="font-weight:bold;">${totalNonDowntimeMenit} menit</td>
       <td></td><td></td><td></td><td></td><td></td>
     </tr>`;
@@ -1461,7 +1589,9 @@ async function exportExcelFallback(){
   <body>
     <table>
       <tr>
-        <th>ID</th><th>Tanggal</th><th>Kategori</th><th>Termasuk Downtime?</th><th>Jenis Mesin</th><th>No. Mesin</th><th>Nama Mesin</th><th>Jenis Kerusakan</th>
+        <th>ID</th><th>Tanggal</th><th>Kategori</th><th>Termasuk Downtime?</th>
+        <th>Verifikasi Chief</th><th>ACC Chief Oleh</th><th>Verifikasi Manajer</th><th>ACC Manajer Oleh</th>
+        <th>Jenis Mesin</th><th>No. Mesin</th><th>Nama Mesin</th><th>Jenis Kerusakan</th>
         <th>Teknisi</th><th>Status</th><th>Jam Mulai</th><th>Jam Selesai</th><th>Durasi (menit)</th><th>Catatan</th><th>Analisa Kerusakan</th><th>Penanganan</th><th>Spare Part</th><th>Foto</th>
       </tr>
       ${rows}
@@ -1485,6 +1615,7 @@ function renderAnalytics(){
   const downtimeData = data.filter(isCountedDowntime);
   const pmData = data.filter(r => r.kategori === 'PM');
   const improveData = data.filter(r => r.kategori === 'Improvement');
+  const pendingVerifData = data.filter(r => r.isDowntime !== false && REGISTERED_MACHINES.includes(r.jenisMesin) && !isFullyVerified(r));
 
   const total = data.length;
   const totalMenit = downtimeData.reduce((sum,r)=> sum + (r.durasiMenit||0), 0);
@@ -1495,6 +1626,7 @@ function renderAnalytics(){
   $('statAvg').textContent = downtimeData.length ? formatDurasi(rataRata) : '-';
   $('statPM').textContent = pmData.length ? `${formatDurasi(pmData.reduce((s,r)=>s+(r.durasiMenit||0),0))} (${pmData.length}x)` : '-';
   $('statImprove').textContent = improveData.length ? `${formatDurasi(improveData.reduce((s,r)=>s+(r.durasiMenit||0),0))} (${improveData.length}x)` : '-';
+  $('statPendingVerif').textContent = pendingVerifData.length ? `${pendingVerifData.length} laporan · ${formatDurasi(pendingVerifData.reduce((s,r)=>s+(r.durasiMenit||0),0))} belum masuk hitungan` : '0 laporan';
 
   const perMesin = {};
   downtimeData.forEach(r => {
@@ -1509,7 +1641,7 @@ function renderAnalytics(){
 
   const maxJumlah = sortedMesin.length ? sortedMesin[0][1].jumlah : 1;
   $('breakdown').innerHTML = sortedMesin.length === 0
-    ? `<div class="empty">Belum ada data downtime untuk periode ini.</div>`
+    ? `<div class="empty">Belum ada data downtime terverifikasi untuk periode ini.</div>`
     : sortedMesin.map(([nama, v]) => `
         <div class="bar-row">
           <div class="bar-row-top">
@@ -1529,6 +1661,7 @@ window.showView = showView;
 window.loadReports = loadReports;
 window.togglePhotos = togglePhotos;
 window.setStatus = setStatus;
+window.setVerif = setVerif;
 window.deleteReport = deleteReport;
 window.removePhoto = removePhoto;
 window.openRekap = openRekap;
