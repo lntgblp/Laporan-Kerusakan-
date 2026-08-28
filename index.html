@@ -647,6 +647,7 @@
         <input type="date" id="filterSampai">
       </div>
     </div>
+    <p class="foot-note" style="margin-top:-8px;margin-bottom:12px;">💡 Isi "Dari Tanggal" &amp; "Sampai Tanggal" dengan tanggal yang sama untuk export laporan harian — tombol "Export ke Excel" di atas hanya mengunduh laporan yang cocok dengan semua filter di sini (status, mesin, kategori, tanggal, dll).</p>
     <div id="list"></div>
     <p class="foot-note" id="countNote"></p>
   </section>
@@ -1381,10 +1382,10 @@ function escapeHtml(s){
   return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-function downloadBlob(blob, ext){
+function downloadBlob(blob, ext, filenameStamp){
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  const stamp = new Date().toISOString().slice(0,10);
+  const stamp = filenameStamp || new Date().toISOString().slice(0,10);
   a.href = url;
   a.download = `Rekap-Laporan-Kerusakan-Mesin-${stamp}.${ext}`;
   document.body.appendChild(a);
@@ -1393,20 +1394,40 @@ function downloadBlob(blob, ext){
   URL.revokeObjectURL(url);
 }
 
+function exportFilenameStamp(dari, sampai){
+  if(dari && sampai && dari === sampai) return dari;
+  if(dari && sampai) return `${dari}_sampai_${sampai}`;
+  if(dari) return `mulai-${dari}`;
+  if(sampai) return `sampai-${sampai}`;
+  return `semua-${new Date().toISOString().slice(0,10)}`;
+}
+
 async function exportExcel(){
-  if(reports.length === 0){ toast('Belum ada data untuk diexport'); return; }
-  toast('Menyiapkan file Excel...');
+  const dari = $('filterDari').value;
+  const sampai = $('filterSampai').value;
+  const dataToExport = applyFilters({
+    statusFilter: activeFilter,
+    mesinFilter: $('filterMesin').value,
+    kategoriFilter: $('filterKategori').value,
+    verifikasiFilter: $('filterVerifikasi').value,
+    dari,
+    sampai,
+    sortBy: $('sortBy').value
+  });
+  if(dataToExport.length === 0){ toast('Tidak ada laporan yang cocok dengan filter untuk diexport'); return; }
+  toast(`Menyiapkan file Excel (${dataToExport.length} laporan sesuai filter)...`);
+  const stamp = exportFilenameStamp(dari, sampai);
   try{
     const mod = await import('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/+esm');
     const ExcelJS = mod.default || mod;
-    await exportExcelWithPhotos(ExcelJS);
+    await exportExcelWithPhotos(ExcelJS, dataToExport, stamp);
   }catch(e){
     toast('Modul Excel gagal dimuat, memakai mode dasar (tanpa foto)...');
-    await exportExcelFallback();
+    await exportExcelFallback(dataToExport, stamp);
   }
 }
 
-async function exportExcelWithPhotos(ExcelJS){
+async function exportExcelWithPhotos(ExcelJS, dataToExport, stamp){
   const MAX_FOTO_KOLOM = 3;
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('Rekap Laporan');
@@ -1450,7 +1471,7 @@ async function exportExcelWithPhotos(ExcelJS){
   let totalDowntimeMenit = 0;
   let totalNonDowntimeMenit = 0;
 
-  for(const r of reports){
+  for(const r of dataToExport){
     const counted = isCountedDowntime(r);
     if(counted) totalDowntimeMenit += (r.durasiMenit || 0);
     else totalNonDowntimeMenit += (r.durasiMenit || 0);
@@ -1510,13 +1531,13 @@ async function exportExcelWithPhotos(ExcelJS){
 
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  downloadBlob(blob, 'xlsx');
+  downloadBlob(blob, 'xlsx', stamp);
   toast('File Excel (dengan foto) sedang diunduh');
 }
 
-async function exportExcelFallback(){
+async function exportExcelFallback(dataToExport, stamp){
   const rowsArr = [];
-  for(const r of reports){
+  for(const r of dataToExport){
     const counted = isCountedDowntime(r);
     let isDowntimeLabel = 'Ya';
     if(r.isDowntime === false) isDowntimeLabel = 'Tidak';
@@ -1550,8 +1571,8 @@ async function exportExcelFallback(){
   `);
   }
   const rows = rowsArr.join('');
-  const totalDowntimeMenit = reports.filter(isCountedDowntime).reduce((sum,r)=> sum + (r.durasiMenit||0), 0);
-  const totalNonDowntimeMenit = reports.filter(r => !isCountedDowntime(r)).reduce((sum,r)=> sum + (r.durasiMenit||0), 0);
+  const totalDowntimeMenit = dataToExport.filter(isCountedDowntime).reduce((sum,r)=> sum + (r.durasiMenit||0), 0);
+  const totalNonDowntimeMenit = dataToExport.filter(r => !isCountedDowntime(r)).reduce((sum,r)=> sum + (r.durasiMenit||0), 0);
   const totalRow = `
     <tr>
       <td colspan="16" style="text-align:right;font-weight:bold;">Akumulasi Downtime Produksi (mesin terdaftar &amp; terverifikasi lengkap)</td>
@@ -1601,7 +1622,7 @@ async function exportExcelFallback(){
   </html>`;
 
   const blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel' });
-  downloadBlob(blob, 'xls');
+  downloadBlob(blob, 'xls', stamp);
   toast('File Excel (mode dasar, tanpa foto) sedang diunduh');
 }
 
