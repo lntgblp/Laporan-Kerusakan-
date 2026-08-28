@@ -467,11 +467,11 @@
 
   <div id="viewLaporan" style="display:none;">
     <div class="back-row">
-      <button type="button" class="back-btn" onclick="showView('menu')">← Kembali ke Menu</button>
+      <button type="button" class="back-btn" onclick="cancelEdit(); showView('menu')">← Kembali ke Menu</button>
     </div>
 
   <section class="panel">
-    <h2><span class="num">01</span> Buat Laporan Baru</h2>
+    <h2 id="formTitle"><span class="num">01</span> Buat Laporan Baru</h2>
     <form id="reportForm">
       <div class="grid">
         <div>
@@ -566,7 +566,8 @@
       <input type="file" id="photoInput" accept="image/*" multiple style="display:none">
       <div class="thumbs" id="thumbs"></div>
 
-      <button type="submit" class="btn">Simpan Laporan</button>
+      <button type="submit" class="btn" id="submitBtnLabel">Simpan Laporan</button>
+      <button type="button" class="btn secondary" id="cancelEditBtn" style="display:none;" onclick="cancelEdit()">Batal Edit</button>
     </form>
     <div id="waBanner" style="display:none; margin-top:14px; padding:12px 14px; background:var(--panel-2); border:1px solid var(--amber-dim); border-radius:8px;">
       <div style="font-size:13px; margin-bottom:8px;">✅ Laporan tersimpan. Kirim juga ke grup WhatsApp?</div>
@@ -732,7 +733,7 @@ const firebaseConfig = {
   appId: "1:456838113783:web:2be4fe025d9a2c4e36a6f2"
 };
 
-const REKAP_PASSWORD = 'utility2026';
+const REKAP_PASSWORD = 'bengkel123';
 
 let db = null;
 let firebaseReady = false;
@@ -798,6 +799,7 @@ function downtimeBadgeText(r){
 }
 
 let reports = [];
+let editingId = null;
 let photoCache = {};
 let expandedPhotoIds = new Set();
 let currentPhotos = [];
@@ -1046,8 +1048,10 @@ $('reportForm').addEventListener('submit', async (e) => {
   }
   const submitBtn = e.target.querySelector('button[type=submit]');
   submitBtn.disabled = true;
-  const id = await genId();
+  const isEditing = !!editingId;
+  const id = isEditing ? editingId : await genId();
   const fotos = [...currentPhotos];
+  const existing = isEditing ? reports.find(x => x.id === id) : null;
   const report = {
     id,
     tanggal: $('f_tanggal').value,
@@ -1067,7 +1071,11 @@ $('reportForm').addEventListener('submit', async (e) => {
     durasiMenit: hitungDurasi($('f_jammulai').value, $('f_jamselesai').value),
     status: $('f_status').value,
     fotoCount: fotos.length,
-    dibuat: new Date().toISOString(),
+    dibuat: isEditing && existing ? existing.dibuat : new Date().toISOString(),
+    dieditPada: isEditing ? new Date().toISOString() : (existing ? existing.dieditPada : null),
+    // Simpan baru ATAU edit selalu mulai dari status verifikasi "pending" —
+    // kalau ini hasil edit dari laporan yang sudah di-ACC, verifikasi lama otomatis batal
+    // karena datanya berubah dan harus dicek ulang oleh Chief & Manajer.
     verifChief: 'pending',
     verifChiefBy: null,
     verifChiefAt: null,
@@ -1083,12 +1091,20 @@ $('reportForm').addEventListener('submit', async (e) => {
     return;
   }
   hideSyncError();
-  reports = [report, ...reports];
+  if(isEditing){
+    reports = reports.map(x => x.id === id ? report : x);
+  } else {
+    reports = [report, ...reports];
+  }
   if(fotos.length) await savePhotos(id, fotos);
+  editingId = null;
   e.target.reset();
   $('f_tanggal').value = new Date().toISOString().slice(0,10);
   $('jenisLainnyaWrap').style.display = 'none';
   $('f_isdowntime').checked = true;
+  $('formTitle').innerHTML = '<span class="num">01</span> Buat Laporan Baru';
+  $('submitBtnLabel').textContent = 'Simpan Laporan';
+  $('cancelEditBtn').style.display = 'none';
   updateDurasiPreview();
   currentPhotos = [];
   renderThumbs();
@@ -1096,11 +1112,59 @@ $('reportForm').addEventListener('submit', async (e) => {
   renderLihat();
   renderAnalytics();
   updateMenuStats();
-  toast('Laporan tersimpan — menunggu verifikasi Chief & Manajer untuk masuk hitungan downtime');
+  toast(isEditing ? 'Laporan diperbarui — verifikasi Chief & Manajer di-reset, perlu ACC ulang' : 'Laporan tersimpan — menunggu verifikasi Chief & Manajer untuk masuk hitungan downtime');
 
   $('waBtn').href = waLink(report);
   $('waBanner').style.display = 'block';
 });
+
+async function startEdit(id){
+  const r = reports.find(x => x.id === id);
+  if(!r){ toast('Laporan tidak ditemukan'); return; }
+  editingId = id;
+
+  $('f_jenismesin').value = REGISTERED_MACHINES.includes(r.jenisMesin) ? r.jenisMesin : 'Lainnya';
+  $('jenisLainnyaWrap').style.display = $('f_jenismesin').value === 'Lainnya' ? 'block' : 'none';
+  $('f_jenismesin_lain').value = REGISTERED_MACHINES.includes(r.jenisMesin) ? '' : (r.jenisMesin || '');
+  $('f_nomesin').value = r.noMesin || '';
+  $('f_kategori').value = r.kategori || 'Breakdown';
+  $('f_isdowntime').checked = r.isDowntime !== false;
+  $('f_mesin').value = r.mesin || '';
+  $('f_tanggal').value = r.tanggal || '';
+  $('f_jenis').value = r.jenis || '';
+  $('f_teknisi').value = r.teknisi || '';
+  $('f_analisa').value = r.analisaKerusakan || '';
+  $('f_penanganan').value = r.penanganan || '';
+  $('f_sparepart').value = r.sparePart || '';
+  $('f_jammulai').value = r.jamMulai || '';
+  $('f_jamselesai').value = r.jamSelesai || '';
+  $('f_status').value = r.status || 'Pantauan';
+  $('f_deskripsi').value = r.deskripsi || '';
+  updateDurasiPreview();
+
+  currentPhotos = r.fotoCount ? [...(await getPhotos(id))] : [];
+  renderThumbs();
+
+  $('formTitle').innerHTML = '<span class="num">01</span> Edit Laporan';
+  $('submitBtnLabel').textContent = 'Update Laporan';
+  $('cancelEditBtn').style.display = 'inline-block';
+  showView('laporan');
+  toast('Mode edit — ubah data lalu klik Update Laporan');
+}
+
+function cancelEdit(){
+  editingId = null;
+  $('reportForm').reset();
+  $('f_tanggal').value = new Date().toISOString().slice(0,10);
+  $('jenisLainnyaWrap').style.display = 'none';
+  $('f_isdowntime').checked = true;
+  updateDurasiPreview();
+  currentPhotos = [];
+  renderThumbs();
+  $('formTitle').innerHTML = '<span class="num">01</span> Buat Laporan Baru';
+  $('submitBtnLabel').textContent = 'Simpan Laporan';
+  $('cancelEditBtn').style.display = 'none';
+}
 
 async function deleteReport(id){
   if(!confirm(`Hapus laporan ${id}? Tindakan ini tidak bisa dibatalkan.`)) return;
@@ -1259,6 +1323,7 @@ function buildCardHtml(r, readOnly){
             <option value="Selesai" ${r.status==='Selesai'?'selected':''}>Selesai</option>
           </select>
           <a href="${waLink(r)}" target="_blank" class="btn small secondary" style="text-decoration:none;">💬 WA</a>
+          <button class="btn small secondary" onclick="startEdit('${r.id}')">✏️ Edit</button>
           <button class="btn small secondary" onclick="deleteReport('${r.id}')">Hapus</button>
         </div>`;
   const verifActionsHtml = readOnly ? '' : `
@@ -1683,6 +1748,8 @@ window.loadReports = loadReports;
 window.togglePhotos = togglePhotos;
 window.setStatus = setStatus;
 window.setVerif = setVerif;
+window.startEdit = startEdit;
+window.cancelEdit = cancelEdit;
 window.deleteReport = deleteReport;
 window.removePhoto = removePhoto;
 window.openRekap = openRekap;
