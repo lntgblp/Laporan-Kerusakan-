@@ -1492,11 +1492,7 @@ async function exportExcel(){
   }
 }
 
-async function exportExcelWithPhotos(ExcelJS, dataToExport, stamp){
-  const MAX_FOTO_KOLOM = 3;
-  const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet('Rekap Laporan');
-
+function getExcelColumns(MAX_FOTO_KOLOM){
   const columns = [
     { header: 'ID', key: 'id', width: 18 },
     { header: 'Tanggal', key: 'tanggal', width: 12 },
@@ -1524,6 +1520,24 @@ async function exportExcelWithPhotos(ExcelJS, dataToExport, stamp){
     columns.push({ header: `Foto ${i}`, key: `foto${i}`, width: 13 });
   }
   columns.push({ header: 'Catatan Foto', key: 'fotoNote', width: 22 });
+  return columns;
+}
+
+function groupReportsByMachine(dataToExport){
+  // Satu sheet per mesin terdaftar, sisanya (mesin custom/"Lainnya") digabung ke satu sheet penampung.
+  const groups = {};
+  REGISTERED_MACHINES.forEach(m => { groups[m] = []; });
+  groups['Lainnya'] = [];
+  dataToExport.forEach(r => {
+    const key = REGISTERED_MACHINES.includes(r.jenisMesin) ? r.jenisMesin : 'Lainnya';
+    groups[key].push(r);
+  });
+  return groups;
+}
+
+async function addReportsSheet(workbook, ExcelJS, sheetName, rowsData, MAX_FOTO_KOLOM){
+  const sheet = workbook.addWorksheet(sheetName);
+  const columns = getExcelColumns(MAX_FOTO_KOLOM);
   sheet.columns = columns;
 
   const headerRow = sheet.getRow(1);
@@ -1536,7 +1550,7 @@ async function exportExcelWithPhotos(ExcelJS, dataToExport, stamp){
   let totalDowntimeMenit = 0;
   let totalNonDowntimeMenit = 0;
 
-  for(const r of dataToExport){
+  for(const r of rowsData){
     const counted = isCountedDowntime(r);
     if(counted) totalDowntimeMenit += (r.durasiMenit || 0);
     else totalNonDowntimeMenit += (r.durasiMenit || 0);
@@ -1593,22 +1607,35 @@ async function exportExcelWithPhotos(ExcelJS, dataToExport, stamp){
   totalRow1.font = { bold: true };
   const totalRow2 = sheet.addRow({ id: 'Akumulasi Non-Downtime (Non-Produksi/PM/Improvement/mesin belum terdaftar/belum terverifikasi)', durasi: `${totalNonDowntimeMenit} menit` });
   totalRow2.font = { bold: true, color: { argb: 'FF928C7E' } };
+}
+
+async function exportExcelWithPhotos(ExcelJS, dataToExport, stamp){
+  const MAX_FOTO_KOLOM = 3;
+  const workbook = new ExcelJS.Workbook();
+  const groups = groupReportsByMachine(dataToExport);
+
+  // Urutan sheet: mesin terdaftar dulu (sesuai urutan REGISTERED_MACHINES), lalu "Lainnya" di akhir.
+  // Sheet dilewati (tidak dibuat) kalau tidak ada laporan untuk mesin itu di data yang sedang diexport.
+  for(const sheetName of [...REGISTERED_MACHINES, 'Lainnya']){
+    const rowsData = groups[sheetName];
+    if(!rowsData || rowsData.length === 0) continue;
+    await addReportsSheet(workbook, ExcelJS, sheetName, rowsData, MAX_FOTO_KOLOM);
+  }
 
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   downloadBlob(blob, 'xlsx', stamp);
-  toast('File Excel (dengan foto) sedang diunduh');
+  toast('File Excel (dengan foto, per-sheet mesin) sedang diunduh');
 }
 
-async function exportExcelFallback(dataToExport, stamp){
-  const rowsArr = [];
-  for(const r of dataToExport){
+function fallbackTableHtml(sheetId, rowsData){
+  const rowsArr = rowsData.map(r => {
     const counted = isCountedDowntime(r);
     let isDowntimeLabel = 'Ya';
     if(r.isDowntime === false) isDowntimeLabel = 'Tidak';
     else if(!REGISTERED_MACHINES.includes(r.jenisMesin)) isDowntimeLabel = 'Tidak (mesin belum terdaftar)';
     else if(!isFullyVerified(r)) isDowntimeLabel = 'Tidak (menunggu verifikasi)';
-    rowsArr.push(`
+    return `
     <tr>
       <td>${r.id}</td>
       <td>${r.tanggal || ''}</td>
@@ -1632,12 +1659,11 @@ async function exportExcelFallback(dataToExport, stamp){
       <td>${escapeHtml(r.penanganan)}</td>
       <td>${escapeHtml(r.sparePart)}</td>
       <td>${r.fotoCount ? `${r.fotoCount} foto — lihat di aplikasi` : ''}</td>
-    </tr>
-  `);
-  }
+    </tr>`;
+  });
   const rows = rowsArr.join('');
-  const totalDowntimeMenit = dataToExport.filter(isCountedDowntime).reduce((sum,r)=> sum + (r.durasiMenit||0), 0);
-  const totalNonDowntimeMenit = dataToExport.filter(r => !isCountedDowntime(r)).reduce((sum,r)=> sum + (r.durasiMenit||0), 0);
+  const totalDowntimeMenit = rowsData.filter(isCountedDowntime).reduce((sum,r)=> sum + (r.durasiMenit||0), 0);
+  const totalNonDowntimeMenit = rowsData.filter(r => !isCountedDowntime(r)).reduce((sum,r)=> sum + (r.durasiMenit||0), 0);
   const totalRow = `
     <tr>
       <td colspan="16" style="text-align:right;font-weight:bold;">Akumulasi Downtime Produksi (mesin terdaftar &amp; terverifikasi lengkap)</td>
@@ -1650,6 +1676,28 @@ async function exportExcelFallback(dataToExport, stamp){
       <td></td><td></td><td></td><td></td><td></td>
     </tr>`;
 
+  return `
+    <table id="${sheetId}" border="1">
+      <tr>
+        <th>ID</th><th>Tanggal</th><th>Kategori</th><th>Termasuk Downtime?</th>
+        <th>Verifikasi Chief</th><th>ACC Chief Oleh</th><th>Verifikasi Manajer</th><th>ACC Manajer Oleh</th>
+        <th>Jenis Mesin</th><th>No. Mesin</th><th>Nama Mesin</th><th>Jenis Kerusakan</th>
+        <th>Teknisi</th><th>Status</th><th>Jam Mulai</th><th>Jam Selesai</th><th>Durasi (menit)</th><th>Catatan</th><th>Analisa Kerusakan</th><th>Penanganan</th><th>Spare Part</th><th>Foto</th>
+      </tr>
+      ${rows}
+      ${totalRow}
+    </table>`;
+}
+
+async function exportExcelFallback(dataToExport, stamp){
+  const groups = groupReportsByMachine(dataToExport);
+  const sheetNames = [...REGISTERED_MACHINES, 'Lainnya'].filter(name => groups[name] && groups[name].length > 0);
+
+  const worksheetDefs = sheetNames
+    .map(name => `<x:ExcelWorksheet><x:Name>${name}</x:Name><x:WorksheetSource HRef="#${name}"/></x:ExcelWorksheet>`)
+    .join('');
+  const tables = sheetNames.map(name => fallbackTableHtml(name, groups[name])).join('\n');
+
   const html = `
   <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
   <head>
@@ -1658,10 +1706,7 @@ async function exportExcelFallback(dataToExport, stamp){
     <xml>
       <x:ExcelWorkbook>
         <x:ExcelWorksheets>
-          <x:ExcelWorksheet>
-            <x:Name>Rekap Laporan</x:Name>
-            <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
-          </x:ExcelWorksheet>
+          ${worksheetDefs}
         </x:ExcelWorksheets>
       </x:ExcelWorkbook>
     </xml>
@@ -1673,22 +1718,13 @@ async function exportExcelFallback(dataToExport, stamp){
     </style>
   </head>
   <body>
-    <table>
-      <tr>
-        <th>ID</th><th>Tanggal</th><th>Kategori</th><th>Termasuk Downtime?</th>
-        <th>Verifikasi Chief</th><th>ACC Chief Oleh</th><th>Verifikasi Manajer</th><th>ACC Manajer Oleh</th>
-        <th>Jenis Mesin</th><th>No. Mesin</th><th>Nama Mesin</th><th>Jenis Kerusakan</th>
-        <th>Teknisi</th><th>Status</th><th>Jam Mulai</th><th>Jam Selesai</th><th>Durasi (menit)</th><th>Catatan</th><th>Analisa Kerusakan</th><th>Penanganan</th><th>Spare Part</th><th>Foto</th>
-      </tr>
-      ${rows}
-      ${totalRow}
-    </table>
+    ${tables}
   </body>
   </html>`;
 
   const blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel' });
   downloadBlob(blob, 'xls', stamp);
-  toast('File Excel (mode dasar, tanpa foto) sedang diunduh');
+  toast('File Excel (mode dasar, tanpa foto, per-sheet mesin) sedang diunduh');
 }
 
 $('exportBtn').addEventListener('click', exportExcel);
