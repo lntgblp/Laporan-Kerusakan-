@@ -399,6 +399,8 @@
     <div style="margin-top:8px;"><button type="button" class="btn small secondary" onclick="loadReports()">🔄 Coba Muat Ulang</button></div>
   </div>
 
+  <p class="foot-note" id="dataRangeBanner" style="margin:-4px 0 16px;"></p>
+
   <div id="viewMenu">
     <div class="menu-grid">
       <button type="button" class="menu-card" onclick="showView('laporan')">
@@ -444,6 +446,8 @@
         </div>
         <button class="btn secondary small" onclick="loadReports()">🔄 Muat Ulang</button>
       </div>
+      <label>Cari</label>
+      <input type="text" id="filterSearchLihat" placeholder="Cari ID, nama mesin, no. mesin, atau teknisi...">
       <div class="grid" style="margin-bottom:6px;">
         <div>
           <label>Filter Jenis Mesin</label>
@@ -620,8 +624,11 @@
         <button class="chip" data-f="Selesai">Selesai</button>
       </div>
       <button class="btn secondary small" id="exportBtn">⬇ Export ke Excel</button>
+      <button class="btn secondary small" id="backupBtn">💾 Backup Semua Data (JSON)</button>
       <button class="btn secondary small" onclick="loadReports()">🔄 Muat Ulang</button>
     </div>
+    <label>Cari</label>
+    <input type="text" id="filterSearch" placeholder="Cari ID, nama mesin, no. mesin, atau teknisi...">
     <div class="grid" style="margin-bottom:6px;">
       <div>
         <label>Filter Jenis Mesin</label>
@@ -726,6 +733,12 @@
 
     <h2 style="margin-top:20px; font-size:13px;">Rincian Downtime per Jenis Mesin <span style="font-size:11px;color:var(--muted);font-weight:400;">(hanya mesin terdaftar &amp; terverifikasi lengkap)</span></h2>
     <div id="breakdown"></div>
+
+    <h2 style="margin-top:20px; font-size:13px;">Downtime per Shift <span style="font-size:11px;color:var(--muted);font-weight:400;">(hanya mesin terdaftar &amp; terverifikasi lengkap)</span></h2>
+    <div id="breakdownShift"></div>
+
+    <h2 style="margin-top:20px; font-size:13px;">Rata-rata Waktu Perbaikan (MTTR) per Jenis Kerusakan <span style="font-size:11px;color:var(--muted);font-weight:400;">(top 8, terverifikasi lengkap)</span></h2>
+    <div id="mttrJenis"></div>
   </section>
   </div>
 
@@ -834,7 +847,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
-  getFirestore, collection, doc, getDoc, getDocs, setDoc, deleteDoc
+  getFirestore, collection, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, orderBy
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -887,6 +900,12 @@ const DEFAULT_DOWNTIME_KATEGORI = new Set(['Breakdown']);
 // "Jenis Mesin" di form DAN ke daftar REGISTERED_MACHINES ini (harus sama persis).
 const REGISTERED_MACHINES = ['Moulding', 'Filling', 'Autoline', 'MCA', 'M50'];
 
+// ---- Rentang pemuatan data default (untuk performa saat data sudah banyak) ----
+// Tampilan awal hanya menarik laporan N bulan terakhir dari Firestore, bukan seluruh koleksi.
+// Alur yang butuh data lengkap (Verifikasi Chief/Manajer, Export, Backup) otomatis
+// memuat seluruh data dulu lewat ensureFullDataLoaded() supaya tidak ada laporan lama yang terlewat.
+const DEFAULT_LOAD_MONTHS = 6;
+
 // ---- Verifikasi Chief & Manajer ----
 // Setiap laporan baru dimulai dengan status verifikasi 'pending' untuk Chief dan Manajer.
 // Jam/durasi downtime HANYA dihitung ke rekap & analisis kalau KEDUA verifikasi sudah 'approved'.
@@ -926,6 +945,13 @@ let currentPhotos = [];
 let activeFilter = 'Semua';
 let activeFilterLihat = 'Semua';
 let rekapUnlocked = false;
+let dataRangeLimited = true; // true = baru memuat N bulan terakhir, false = seluruh data sudah dimuat
+let loadedSinceDate = null;
+
+function debounce(fn, ms){
+  let t;
+  return (...args)=>{ clearTimeout(t); t = setTimeout(()=>fn(...args), ms); };
+}
 
 const $ = (id) => document.getElementById(id);
 
@@ -940,8 +966,8 @@ let chiefUnlocked = false;
 let managerUnlocked = false;
 let pendingRoleView = null; // 'verifChief' | 'verifManajer'
 
-function openChiefView(){
-  if(chiefUnlocked){ showView('verifChief'); renderVerifChief(); return; }
+async function openChiefView(){
+  if(chiefUnlocked){ await ensureFullDataLoaded(); showView('verifChief'); renderVerifChief(); return; }
   pendingRoleView = 'verifChief';
   $('rolePwTitle').textContent = '🔒 Password Chief';
   $('rolePwInput').value = '';
@@ -949,8 +975,8 @@ function openChiefView(){
   $('rolePwModal').style.display = 'flex';
   setTimeout(()=> $('rolePwInput').focus(), 50);
 }
-function openManajerView(){
-  if(managerUnlocked){ showView('verifManajer'); renderVerifManajer(); return; }
+async function openManajerView(){
+  if(managerUnlocked){ await ensureFullDataLoaded(); showView('verifManajer'); renderVerifManajer(); return; }
   pendingRoleView = 'verifManajer';
   $('rolePwTitle').textContent = '🔒 Password Manajer';
   $('rolePwInput').value = '';
@@ -962,13 +988,14 @@ function closeRolePwModal(){
   $('rolePwModal').style.display = 'none';
   pendingRoleView = null;
 }
-function checkRolePassword(){
+async function checkRolePassword(){
   const expected = pendingRoleView === 'verifChief' ? CHIEF_PASSWORD : MANAGER_PASSWORD;
   if($('rolePwInput').value === expected){
     if(pendingRoleView === 'verifChief') chiefUnlocked = true;
     if(pendingRoleView === 'verifManajer') managerUnlocked = true;
     const target = pendingRoleView;
     closeRolePwModal();
+    await ensureFullDataLoaded();
     showView(target === 'verifChief' ? 'verifChief' : 'verifManajer');
     if(target === 'verifChief') renderVerifChief(); else renderVerifManajer();
   } else {
@@ -1060,15 +1087,25 @@ async function keyExists(id){
   }
 }
 
-async function fetchAllReports(){
+async function fetchAllReports(sinceMonthsBack){
   if(!firebaseReady){
     return { ok:false, data:[], reason: db === null && !firebaseConfig.apiKey.startsWith('GANTI') ? 'error' : 'no-storage' };
   }
+  let cutoffStr = null;
   try{
-    const snap = await getDocs(collection(db, REPORTS_COL));
+    let snap;
+    if(sinceMonthsBack){
+      const cutoff = new Date();
+      cutoff.setMonth(cutoff.getMonth() - sinceMonthsBack);
+      cutoffStr = cutoff.toISOString().slice(0,10);
+      const q = query(collection(db, REPORTS_COL), where('tanggal', '>=', cutoffStr), orderBy('tanggal', 'desc'));
+      snap = await getDocs(q);
+    } else {
+      snap = await getDocs(collection(db, REPORTS_COL));
+    }
     const data = [];
     snap.forEach(d => data.push({ ...d.data(), id: d.id }));
-    return { ok:true, data };
+    return { ok:true, data, cutoff: cutoffStr };
   }catch(e){
     return { ok:false, data:[], reason:'error' };
   }
@@ -1092,20 +1129,43 @@ async function removeReportKey(id){
   }
 }
 
-async function loadReports(){
-  const result = await fetchAllReports();
+async function loadReports(fullLoad){
+  const useFull = typeof fullLoad === 'boolean' ? fullLoad : !dataRangeLimited;
+  const result = await fetchAllReports(useFull ? null : DEFAULT_LOAD_MONTHS);
   reports = result.data;
   if(!result.ok){
     showSyncError(result.reason);
   } else {
     hideSyncError();
+    dataRangeLimited = !useFull;
+    loadedSinceDate = result.cutoff || null;
   }
+  updateDataRangeBanner();
   render();
   renderLihat();
   renderVerifChief();
   renderVerifManajer();
   renderAnalytics();
   updateMenuStats();
+}
+
+function updateDataRangeBanner(){
+  const el = $('dataRangeBanner');
+  if(!el) return;
+  if(dataRangeLimited && loadedSinceDate){
+    el.innerHTML = `📦 Menampilkan laporan sejak ${loadedSinceDate} (${DEFAULT_LOAD_MONTHS} bulan terakhir) · ${reports.length} laporan. <button type="button" class="btn small secondary" style="padding:3px 8px;font-size:11px;" onclick="loadReports(true)">Muat Semua Data</button>`;
+  } else {
+    el.innerHTML = `📦 Seluruh data laporan dimuat · ${reports.length} laporan.`;
+  }
+}
+
+// Dipanggil sebelum alur yang WAJIB melihat seluruh data (verifikasi, export, backup)
+// supaya laporan lama yang berada di luar rentang default tidak pernah terlewat.
+async function ensureFullDataLoaded(){
+  if(dataRangeLimited){
+    toast('Memuat seluruh data...');
+    await loadReports(true);
+  }
 }
 
 function showSyncError(reason){
@@ -1639,8 +1699,20 @@ $('filterDariLihat').addEventListener('change', renderLihat);
 $('filterSampaiLihat').addEventListener('change', renderLihat);
 $('sortByLihat').addEventListener('change', renderLihat);
 
-function applyFilters({ statusFilter, mesinFilter, kategoriFilter, verifikasiFilter, dari, sampai, sortBy }){
+function applyFilters({ statusFilter, mesinFilter, kategoriFilter, verifikasiFilter, dari, sampai, sortBy, searchText }){
   let filtered = statusFilter === 'Semua' ? [...reports] : reports.filter(r => r.status === statusFilter);
+
+  if(searchText && searchText.trim()){
+    const q = searchText.trim().toLowerCase();
+    filtered = filtered.filter(r =>
+      (r.id||'').toLowerCase().includes(q) ||
+      (r.mesin||'').toLowerCase().includes(q) ||
+      (r.noMesin||'').toLowerCase().includes(q) ||
+      (r.jenisMesin||'').toLowerCase().includes(q) ||
+      (r.jenis||'').toLowerCase().includes(q) ||
+      (r.teknisi||'').toLowerCase().includes(q)
+    );
+  }
 
   if(mesinFilter && mesinFilter !== 'Semua'){
     filtered = filtered.filter(r => r.jenisMesin === mesinFilter);
