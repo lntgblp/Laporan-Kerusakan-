@@ -546,6 +546,18 @@
           <input type="text" id="f_teknisi" placeholder="Nama teknisi" required>
         </div>
       </div>
+      <div class="grid">
+        <div>
+          <label>Shift</label>
+          <select id="f_shift" required>
+            <option value="">Pilih shift</option>
+            <option value="I">I</option>
+            <option value="II">II</option>
+            <option value="III">III</option>
+          </select>
+        </div>
+        <div></div>
+      </div>
        <label>Analisa Kerusakan</label>
       <textarea id="f_analisa" placeholder="Penyebab kerusakan, hasil analisa teknisi..."></textarea>
 
@@ -1220,6 +1232,7 @@ $('reportForm').addEventListener('submit', async (e) => {
     mesin: $('f_mesin').value.trim(),
     jenis: $('f_jenis').value.trim(),
     teknisi: $('f_teknisi').value.trim(),
+    shift: $('f_shift').value,
     deskripsi: $('f_deskripsi').value.trim(),
     analisaKerusakan: $('f_analisa').value.trim(),
     penanganan: $('f_penanganan').value.trim(),
@@ -1291,6 +1304,7 @@ async function startEdit(id){
   $('f_tanggal').value = r.tanggal || '';
   $('f_jenis').value = r.jenis || '';
   $('f_teknisi').value = r.teknisi || '';
+  $('f_shift').value = r.shift || '';
   $('f_analisa').value = r.analisaKerusakan || '';
   $('f_penanganan').value = r.penanganan || '';
   $('f_sparepart').value = r.sparePart || '';
@@ -1433,7 +1447,7 @@ function buildVerifCardHtml(r, role){
         </div>
         <div class="card-meta">
           <strong>Kerusakan:</strong> ${escapeHtml(r.jenis)}<br>
-          <strong>Teknisi:</strong> ${escapeHtml(r.teknisi)}
+          <strong>Teknisi:</strong> ${escapeHtml(r.teknisi)}${r.shift ? ' · Shift ' + escapeHtml(r.shift) : ''}
           ${(r.jamMulai && r.jamSelesai) ? `<br><strong>Waktu:</strong> ${r.jamMulai}–${r.jamSelesai} (${formatDurasi(r.durasiMenit)})` : ''}
           ${r.analisaKerusakan ? '<br><strong>Analisa:</strong> ' + escapeHtml(r.analisaKerusakan) : ''}
           ${r.penanganan ? '<br><strong>Penanganan:</strong> ' + escapeHtml(r.penanganan) : ''}
@@ -1690,7 +1704,7 @@ function buildCardHtml(r, readOnly){
         </div>
         <div class="card-meta">
           <strong>Kerusakan:</strong> ${escapeHtml(r.jenis)}<br>
-          <strong>Teknisi:</strong> ${escapeHtml(r.teknisi)}
+          <strong>Teknisi:</strong> ${escapeHtml(r.teknisi)}${r.shift ? ' · Shift ' + escapeHtml(r.shift) : ''}
           ${r.deskripsi ? '<br><strong>Catatan:</strong> ' + escapeHtml(r.deskripsi) : ''}
           ${r.analisaKerusakan ? '<br><strong>Analisa Kerusakan:</strong> ' + escapeHtml(r.analisaKerusakan) : ''}
           ${r.penanganan ? '<br><strong>Penanganan:</strong> ' + escapeHtml(r.penanganan) : ''}
@@ -1766,6 +1780,7 @@ function waMessage(r){
     `Mesin: ${r.mesin}`,
     `Kerusakan: ${r.jenis}`,
     `Teknisi: ${r.teknisi}`,
+    `Shift: ${r.shift || '-'}`,
     `Status: ${statusLabel(r.status)}`,
   ];
   if(r.deskripsi) lines.push(`Catatan: ${r.deskripsi}`);
@@ -1807,6 +1822,11 @@ function exportFilenameStamp(dari, sampai){
   return `semua-${new Date().toISOString().slice(0,10)}`;
 }
 
+function periodeWaktuText(r){
+  if(!r.jamMulai || !r.jamSelesai) return '';
+  return `${r.jamMulai.replace(':','.')} - ${r.jamSelesai.replace(':','.')}`;
+}
+
 async function exportExcel(){
   const dari = $('filterDari').value;
   const sampai = $('filterSampai').value;
@@ -1834,27 +1854,28 @@ async function exportExcel(){
 
 function getExcelColumns(MAX_FOTO_KOLOM){
   const columns = [
+    // ---- Kolom mengikuti urutan "List Catatan Perbaikan Harian Equipment M/C" ----
+    { header: 'Nama Equipment', key: 'namaEquipment', width: 16 },
+    { header: 'No. M/C', key: 'noMC', width: 10 },
+    { header: 'Konten Perbaikan', key: 'kontenPerbaikan', width: 26 },
+    { header: 'Penggantian \nKomponen', key: 'penggantianKomponen', width: 20 },
+    { header: 'Periode Waktu Perbaikan', key: 'periodeWaktu', width: 18 },
+    { header: 'Tgl\nPerbaikan', key: 'tglPerbaikan', width: 12 },
+    { header: 'Shift', key: 'shift', width: 8 },
+    { header: 'PIC Perbaikan', key: 'picPerbaikan', width: 20 },
+    { header: 'Waktu Maintenance/M', key: 'waktuMaintenance', width: 16 },
+    // ---- Kolom tambahan aplikasi (di luar file referensi) ----
     { header: 'ID', key: 'id', width: 18 },
-    { header: 'Tanggal', key: 'tanggal', width: 12 },
     { header: 'Kategori', key: 'kategori', width: 20 },
     { header: 'Termasuk Downtime?', key: 'isDowntime', width: 26 },
     { header: 'Verifikasi Chief', key: 'verifChief', width: 16 },
     { header: 'ACC Chief Oleh', key: 'verifChiefBy', width: 16 },
     { header: 'Verifikasi Manajer', key: 'verifManager', width: 18 },
     { header: 'ACC Manajer Oleh', key: 'verifManagerBy', width: 16 },
-    { header: 'Jenis Mesin', key: 'jenisMesin', width: 14 },
-    { header: 'No. Mesin', key: 'noMesin', width: 10 },
-    { header: 'Nama Mesin', key: 'mesin', width: 20 },
-    { header: 'Jenis Kerusakan', key: 'jenis', width: 22 },
-    { header: 'Teknisi', key: 'teknisi', width: 16 },
     { header: 'Status', key: 'status', width: 14 },
-    { header: 'Jam Mulai', key: 'jamMulai', width: 10 },
-    { header: 'Jam Selesai', key: 'jamSelesai', width: 10 },
-    { header: 'Durasi (menit)', key: 'durasi', width: 12 },
     { header: 'Analisa Kerusakan', key: 'analisa', width: 28 },
     { header: 'Penanganan', key: 'penanganan', width: 28 },
-    { header: 'Catatan', key: 'deskripsi', width: 28 },
-    { header: 'Spare Part', key: 'sparePart', width: 22 }
+    { header: 'Catatan', key: 'deskripsi', width: 28 }
   ];
   for(let i = 1; i <= MAX_FOTO_KOLOM; i++){
     columns.push({ header: `Foto ${i}`, key: `foto${i}`, width: 13 });
@@ -1883,8 +1904,8 @@ async function addReportsSheet(workbook, ExcelJS, sheetName, rowsData, MAX_FOTO_
   const headerRow = sheet.getRow(1);
   headerRow.font = { bold: true, color: { argb: 'FF20180A' } };
   headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2A93B' } };
-  headerRow.alignment = { vertical: 'middle' };
-  headerRow.height = 20;
+  headerRow.alignment = { vertical: 'middle', wrapText: true };
+  headerRow.height = 28;
 
   const fotoColStart = columns.findIndex(c => c.key === 'foto1');
   let totalDowntimeMenit = 0;
@@ -1902,27 +1923,26 @@ async function addReportsSheet(workbook, ExcelJS, sheetName, rowsData, MAX_FOTO_
 
     const fotos = r.fotoCount ? await getPhotos(r.id) : [];
     const row = sheet.addRow({
+      namaEquipment: r.jenisMesin || '',
+      noMC: r.noMesin || '',
+      kontenPerbaikan: r.jenis || '',
+      penggantianKomponen: r.sparePart || '-',
+      periodeWaktu: periodeWaktuText(r),
+      tglPerbaikan: r.tanggal || '',
+      shift: r.shift || '',
+      picPerbaikan: r.teknisi || '',
+      waktuMaintenance: r.durasiMenit ?? '',
       id: r.id,
-      tanggal: r.tanggal || '',
       kategori: kategoriLabel(r.kategori),
       isDowntime: isDowntimeLabel,
       verifChief: verifLabel(r.verifChief || 'pending'),
       verifChiefBy: r.verifChiefBy || '',
       verifManager: verifLabel(r.verifManager || 'pending'),
       verifManagerBy: r.verifManagerBy || '',
-      jenisMesin: r.jenisMesin || '',
-      noMesin: r.noMesin || '',
-      mesin: r.mesin || '',
-      jenis: r.jenis || '',
-      teknisi: r.teknisi || '',
       status: statusLabel(r.status),
-      jamMulai: r.jamMulai || '',
-      jamSelesai: r.jamSelesai || '',
-      durasi: r.durasiMenit ?? '',
       deskripsi: r.deskripsi || '',
       analisa: r.analisaKerusakan || '',
       penanganan: r.penanganan || '',
-      sparePart: r.sparePart || '',
       fotoNote: fotos.length > MAX_FOTO_KOLOM ? `+${fotos.length - MAX_FOTO_KOLOM} foto lainnya di aplikasi` : ''
     });
     row.alignment = { vertical: 'top', wrapText: true };
@@ -1943,9 +1963,9 @@ async function addReportsSheet(workbook, ExcelJS, sheetName, rowsData, MAX_FOTO_
     }
   }
 
-  const totalRow1 = sheet.addRow({ id: 'Akumulasi Downtime Produksi (mesin terdaftar & terverifikasi lengkap)', durasi: `${totalDowntimeMenit} menit` });
+  const totalRow1 = sheet.addRow({ namaEquipment: 'Akumulasi Downtime Produksi (mesin terdaftar & terverifikasi lengkap)', waktuMaintenance: totalDowntimeMenit });
   totalRow1.font = { bold: true };
-  const totalRow2 = sheet.addRow({ id: 'Akumulasi Non-Downtime (Non-Produksi/PM/Improvement/mesin belum terdaftar/belum terverifikasi)', durasi: `${totalNonDowntimeMenit} menit` });
+  const totalRow2 = sheet.addRow({ namaEquipment: 'Akumulasi Non-Downtime (Non-Produksi/PM/Improvement/mesin belum terdaftar/belum terverifikasi)', waktuMaintenance: totalNonDowntimeMenit });
   totalRow2.font = { bold: true, color: { argb: 'FF928C7E' } };
 }
 
@@ -1977,27 +1997,26 @@ function fallbackTableHtml(sheetId, rowsData){
     else if(!isFullyVerified(r)) isDowntimeLabel = 'Tidak (menunggu verifikasi)';
     return `
     <tr>
-      <td>${r.id}</td>
+      <td>${escapeHtml(r.jenisMesin || '')}</td>
+      <td>${escapeHtml(r.noMesin || '')}</td>
+      <td>${escapeHtml(r.jenis)}</td>
+      <td>${escapeHtml(r.sparePart || '-')}</td>
+      <td>${periodeWaktuText(r)}</td>
       <td>${r.tanggal || ''}</td>
+      <td>${escapeHtml(r.shift || '')}</td>
+      <td>${escapeHtml(r.teknisi)}</td>
+      <td>${r.durasiMenit ?? ''}</td>
+      <td>${r.id}</td>
       <td>${escapeHtml(kategoriLabel(r.kategori))}</td>
       <td>${isDowntimeLabel}</td>
       <td>${verifLabel(r.verifChief || 'pending')}</td>
       <td>${escapeHtml(r.verifChiefBy || '')}</td>
       <td>${verifLabel(r.verifManager || 'pending')}</td>
       <td>${escapeHtml(r.verifManagerBy || '')}</td>
-      <td>${escapeHtml(r.jenisMesin || '')}</td>
-      <td>${escapeHtml(r.noMesin || '')}</td>
-      <td>${escapeHtml(r.mesin)}</td>
-      <td>${escapeHtml(r.jenis)}</td>
-      <td>${escapeHtml(r.teknisi)}</td>
       <td>${statusLabel(r.status)}</td>
-      <td>${r.jamMulai || ''}</td>
-      <td>${r.jamSelesai || ''}</td>
-      <td>${r.durasiMenit ?? ''}</td>
-      <td>${escapeHtml(r.deskripsi)}</td>
       <td>${escapeHtml(r.analisaKerusakan)}</td>
       <td>${escapeHtml(r.penanganan)}</td>
-      <td>${escapeHtml(r.sparePart)}</td>
+      <td>${escapeHtml(r.deskripsi)}</td>
       <td>${r.fotoCount ? `${r.fotoCount} foto — lihat di aplikasi` : ''}</td>
     </tr>`;
   });
@@ -2006,23 +2025,24 @@ function fallbackTableHtml(sheetId, rowsData){
   const totalNonDowntimeMenit = rowsData.filter(r => !isCountedDowntime(r)).reduce((sum,r)=> sum + (r.durasiMenit||0), 0);
   const totalRow = `
     <tr>
-      <td colspan="16" style="text-align:right;font-weight:bold;">Akumulasi Downtime Produksi (mesin terdaftar &amp; terverifikasi lengkap)</td>
+      <td colspan="8" style="text-align:right;font-weight:bold;">Akumulasi Downtime Produksi (mesin terdaftar &amp; terverifikasi lengkap)</td>
       <td style="font-weight:bold;">${totalDowntimeMenit} menit</td>
-      <td></td><td></td><td></td><td></td><td></td>
+      <td colspan="12"></td>
     </tr>
     <tr>
-      <td colspan="16" style="text-align:right;font-weight:bold;">Akumulasi Non-Downtime (Non-Produksi/PM/Improvement/mesin belum terdaftar/belum terverifikasi)</td>
+      <td colspan="8" style="text-align:right;font-weight:bold;">Akumulasi Non-Downtime (Non-Produksi/PM/Improvement/mesin belum terdaftar/belum terverifikasi)</td>
       <td style="font-weight:bold;">${totalNonDowntimeMenit} menit</td>
-      <td></td><td></td><td></td><td></td><td></td>
+      <td colspan="12"></td>
     </tr>`;
 
   return `
     <table id="${sheetId}" border="1">
       <tr>
-        <th>ID</th><th>Tanggal</th><th>Kategori</th><th>Termasuk Downtime?</th>
+        <th>Nama Equipment</th><th>No. M/C</th><th>Konten Perbaikan</th><th>Penggantian Komponen</th>
+        <th>Periode Waktu Perbaikan</th><th>Tgl Perbaikan</th><th>Shift</th><th>PIC Perbaikan</th><th>Waktu Maintenance/M</th>
+        <th>ID</th><th>Kategori</th><th>Termasuk Downtime?</th>
         <th>Verifikasi Chief</th><th>ACC Chief Oleh</th><th>Verifikasi Manajer</th><th>ACC Manajer Oleh</th>
-        <th>Jenis Mesin</th><th>No. Mesin</th><th>Nama Mesin</th><th>Jenis Kerusakan</th>
-        <th>Teknisi</th><th>Status</th><th>Jam Mulai</th><th>Jam Selesai</th><th>Durasi (menit)</th><th>Catatan</th><th>Analisa Kerusakan</th><th>Penanganan</th><th>Spare Part</th><th>Foto</th>
+        <th>Status</th><th>Analisa Kerusakan</th><th>Penanganan</th><th>Catatan</th><th>Foto</th>
       </tr>
       ${rows}
       ${totalRow}
