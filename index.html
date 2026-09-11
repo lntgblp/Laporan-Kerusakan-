@@ -409,10 +409,26 @@
       <button type="button" class="menu-card" onclick="openRekap()">
         <div class="icon">📊</div>
         <h3>Rekap &amp; Analisis <span style="font-size:12px;">🔒</span></h3>
-        <p>Kelola status, verifikasi Chief/Manajer, hapus laporan, export Excel, dan lihat statistik bulanan. Dilindungi password.</p>
+        <p>Kelola status, hapus laporan, export Excel, dan lihat statistik bulanan. Dilindungi password.</p>
         <div class="menu-stats">
           <span class="menu-stat" id="menuStatTotal">0 laporan</span>
           <span class="menu-stat" id="menuStatOpen">0 dalam proses</span>
+        </div>
+      </button>
+      <button type="button" class="menu-card" onclick="openChiefView()">
+        <div class="icon">✅</div>
+        <h3>Verifikasi Chief <span style="font-size:12px;">🔒</span></h3>
+        <p>ACC laporan satu per satu begitu masuk. Password berbeda dari Rekap &amp; Manajer.</p>
+        <div class="menu-stats">
+          <span class="menu-stat" id="menuStatChiefPending">0 menunggu</span>
+        </div>
+      </button>
+      <button type="button" class="menu-card" onclick="openManajerView()">
+        <div class="icon">🗓️</div>
+        <h3>Verifikasi Manajer <span style="font-size:12px;">🔒</span></h3>
+        <p>ACC laporan per periode (mingguan/bulanan) yang sudah lolos Chief. Password sendiri.</p>
+        <div class="menu-stats">
+          <span class="menu-stat" id="menuStatManagerPending">0 menunggu</span>
         </div>
       </button>
     </div>
@@ -701,6 +717,78 @@
   </section>
   </div>
 
+  <div id="viewVerifChief" style="display:none;">
+    <div class="back-row">
+      <button type="button" class="back-btn" onclick="showView('menu')">← Kembali ke Menu</button>
+    </div>
+
+  <section class="panel">
+    <h2>✅ Verifikasi Chief</h2>
+    <p class="foot-note" style="margin-top:-8px;margin-bottom:12px;">Setujui atau tolak laporan satu per satu begitu masuk. Sertakan komentar kalau perlu.</p>
+    <div class="toolbar">
+      <div class="filters" id="filtersVerifChief">
+        <button class="chip active" data-f="pending">Menunggu</button>
+        <button class="chip" data-f="approved">Disetujui</button>
+        <button class="chip" data-f="rejected">Ditolak</button>
+        <button class="chip" data-f="Semua">Semua</button>
+      </div>
+      <button class="btn secondary small" onclick="loadReports()">🔄 Muat Ulang</button>
+    </div>
+    <div id="listVerifChief"></div>
+    <p class="foot-note" id="countNoteVerifChief"></p>
+  </section>
+  </div>
+
+  <div id="viewVerifManajer" style="display:none;">
+    <div class="back-row">
+      <button type="button" class="back-btn" onclick="showView('menu')">← Kembali ke Menu</button>
+    </div>
+
+  <section class="panel">
+    <h2>🗓️ Verifikasi Manajer</h2>
+    <p class="foot-note" style="margin-top:-8px;margin-bottom:12px;">Tinjau &amp; ACC laporan per periode (mingguan/bulanan) yang sudah lolos verifikasi Chief.</p>
+
+    <div class="grid" style="margin-bottom:6px;">
+      <div>
+        <label>Jenis Periode</label>
+        <select id="verifPeriodeType">
+          <option value="minggu">Mingguan</option>
+          <option value="bulan">Bulanan</option>
+        </select>
+      </div>
+      <div>
+        <div id="verifPeriodeMingguWrap">
+          <label>Pilih tanggal (di dalam minggu tsb.)</label>
+          <input type="date" id="verifPeriodeMinggu">
+        </div>
+        <div id="verifPeriodeBulanWrap" style="display:none;">
+          <label>Pilih bulan</label>
+          <input type="month" id="verifPeriodeBulan">
+        </div>
+      </div>
+    </div>
+    <p class="foot-note" id="verifPeriodeRangeLabel" style="margin-top:-8px;margin-bottom:12px;"></p>
+
+    <div class="toolbar">
+      <div class="filters" id="filtersVerifManajer">
+        <button class="chip active" data-f="pending">Menunggu</button>
+        <button class="chip" data-f="approved">Disetujui</button>
+        <button class="chip" data-f="rejected">Ditolak</button>
+        <button class="chip" data-f="Semua">Semua</button>
+      </div>
+      <button class="btn secondary small" onclick="loadReports()">🔄 Muat Ulang</button>
+    </div>
+
+    <div class="row-actions" style="margin-bottom:14px;align-items:flex-start;">
+      <input type="text" id="bulkManajerComment" placeholder="Komentar untuk semua laporan di periode ini (opsional)" style="flex:1;">
+      <button class="btn small" onclick="bulkApproveManajer()">✅ Setujui Semua yang Tampil</button>
+    </div>
+
+    <div id="listVerifManajer"></div>
+    <p class="foot-note" id="countNoteVerifManajer"></p>
+  </section>
+  </div>
+
 </main>
 
 <div id="pwModal" class="modal-overlay" style="display:none;">
@@ -712,6 +800,19 @@
     <div class="row-actions" style="margin-top:4px;">
       <button type="button" class="btn small" onclick="checkPassword()">Buka</button>
       <button type="button" class="btn small secondary" onclick="closePwModal()">Batal</button>
+    </div>
+  </div>
+</div>
+
+<div id="rolePwModal" class="modal-overlay" style="display:none;">
+  <div class="modal-box">
+    <h3 id="rolePwTitle">🔒 Password</h3>
+    <label>Password</label>
+    <input type="password" id="rolePwInput" placeholder="Masukkan password">
+    <p class="foot-note" id="rolePwError" style="display:none;color:var(--danger);">Password salah, coba lagi.</p>
+    <div class="row-actions" style="margin-top:4px;">
+      <button type="button" class="btn small" onclick="checkRolePassword()">Buka</button>
+      <button type="button" class="btn small secondary" onclick="closeRolePwModal()">Batal</button>
     </div>
   </div>
 </div>
@@ -734,6 +835,13 @@ const firebaseConfig = {
 };
 
 const REKAP_PASSWORD = 'utility2026';
+// ============================================================
+// PASSWORD VERIFIKASI — GANTI dengan password sendiri untuk tiap peran.
+// Sengaja dipisah dari REKAP_PASSWORD dan dari satu sama lain: orang yang hanya
+// tahu password Chief tidak bisa membuka tampilan Manajer, begitu juga sebaliknya.
+// ============================================================
+const CHIEF_PASSWORD = 'chief2026';
+const MANAGER_PASSWORD = 'manajer2026';
 
 let db = null;
 let firebaseReady = false;
@@ -810,11 +918,54 @@ let rekapUnlocked = false;
 const $ = (id) => document.getElementById(id);
 
 function showView(view){
-  const views = { menu: 'viewMenu', laporan: 'viewLaporan', rekap: 'viewRekap' };
+  const views = { menu: 'viewMenu', laporan: 'viewLaporan', rekap: 'viewRekap', verifChief: 'viewVerifChief', verifManajer: 'viewVerifManajer' };
   Object.values(views).forEach(id => { $(id).style.display = 'none'; });
   $(views[view]).style.display = 'block';
   window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
 }
+
+let chiefUnlocked = false;
+let managerUnlocked = false;
+let pendingRoleView = null; // 'verifChief' | 'verifManajer'
+
+function openChiefView(){
+  if(chiefUnlocked){ showView('verifChief'); renderVerifChief(); return; }
+  pendingRoleView = 'verifChief';
+  $('rolePwTitle').textContent = '🔒 Password Chief';
+  $('rolePwInput').value = '';
+  $('rolePwError').style.display = 'none';
+  $('rolePwModal').style.display = 'flex';
+  setTimeout(()=> $('rolePwInput').focus(), 50);
+}
+function openManajerView(){
+  if(managerUnlocked){ showView('verifManajer'); renderVerifManajer(); return; }
+  pendingRoleView = 'verifManajer';
+  $('rolePwTitle').textContent = '🔒 Password Manajer';
+  $('rolePwInput').value = '';
+  $('rolePwError').style.display = 'none';
+  $('rolePwModal').style.display = 'flex';
+  setTimeout(()=> $('rolePwInput').focus(), 50);
+}
+function closeRolePwModal(){
+  $('rolePwModal').style.display = 'none';
+  pendingRoleView = null;
+}
+function checkRolePassword(){
+  const expected = pendingRoleView === 'verifChief' ? CHIEF_PASSWORD : MANAGER_PASSWORD;
+  if($('rolePwInput').value === expected){
+    if(pendingRoleView === 'verifChief') chiefUnlocked = true;
+    if(pendingRoleView === 'verifManajer') managerUnlocked = true;
+    const target = pendingRoleView;
+    closeRolePwModal();
+    showView(target === 'verifChief' ? 'verifChief' : 'verifManajer');
+    if(target === 'verifChief') renderVerifChief(); else renderVerifManajer();
+  } else {
+    $('rolePwError').style.display = 'block';
+  }
+}
+$('rolePwInput').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter'){ e.preventDefault(); checkRolePassword(); }
+});
 
 function openRekap(){
   if(rekapUnlocked){ showView('rekap'); return; }
@@ -844,6 +995,11 @@ function updateMenuStats(){
   const open = reports.filter(r => r.status !== 'Selesai').length;
   $('menuStatTotal').textContent = `${total} laporan`;
   $('menuStatOpen').textContent = `${open} dalam proses`;
+
+  const chiefPending = reports.filter(r => (r.verifChief || 'pending') === 'pending').length;
+  const managerPending = reports.filter(r => r.verifChief === 'approved' && (r.verifManager || 'pending') === 'pending').length;
+  $('menuStatChiefPending').textContent = `${chiefPending} menunggu`;
+  $('menuStatManagerPending').textContent = `${managerPending} menunggu`;
 }
 
 function hitungDurasi(jamMulai, jamSelesai){
@@ -934,6 +1090,8 @@ async function loadReports(){
   }
   render();
   renderLihat();
+  renderVerifChief();
+  renderVerifManajer();
   renderAnalytics();
   updateMenuStats();
 }
@@ -1205,7 +1363,7 @@ async function setStatus(id, status){
 }
 
 // role: 'verifChief' atau 'verifManager'; status: 'approved' atau 'rejected'
-async function setVerif(id, role, status){
+async function setVerif(id, role, status, comment){
   if(!firebaseReady){ showSyncError(firebaseConfig.apiKey.startsWith('GANTI') ? 'no-storage' : 'error'); render(); return; }
   const roleLabel = role === 'verifChief' ? 'Chief' : 'Manajer';
   let verifiedBy = null;
@@ -1215,14 +1373,16 @@ async function setVerif(id, role, status){
     if(!verifiedBy.trim()){ toast('Nama wajib diisi untuk menyetujui'); return; }
   } else {
     if(!confirm(`Tolak verifikasi ${roleLabel} untuk laporan ini? Downtime tidak akan masuk hitungan.`)) return;
+    verifiedBy = prompt(`Nama ${roleLabel} yang menolak (opsional):`) || null;
   }
   try{
     const snap = await getDoc(doc(db, REPORTS_COL, id));
     const current = snap.exists() ? { ...snap.data(), id } : null;
     if(!current){ toast('Laporan sudah tidak ada (mungkin dihapus pengguna lain)'); await loadReports(); return; }
     current[role] = status;
-    current[role + 'By'] = status === 'approved' ? verifiedBy.trim() : null;
+    current[role + 'By'] = verifiedBy ? verifiedBy.trim() : null;
     current[role + 'At'] = new Date().toISOString();
+    current[role + 'Comment'] = (comment || '').trim() || null;
     const saved = await saveReport(current);
     if(!saved){ showSyncError('error'); toast('Gagal terhubung ke server'); render(); return; }
     hideSyncError();
@@ -1231,14 +1391,197 @@ async function setVerif(id, role, status){
       local[role] = current[role];
       local[role + 'By'] = current[role + 'By'];
       local[role + 'At'] = current[role + 'At'];
+      local[role + 'Comment'] = current[role + 'Comment'];
     }
     toast(status === 'approved' ? `Disetujui oleh ${roleLabel}` : `Ditolak oleh ${roleLabel}`);
   }catch(e){
     showSyncError('error');
     toast('Gagal terhubung ke server');
+    return;
   }
   render();
   renderLihat();
+  renderVerifChief();
+  renderVerifManajer();
+  renderAnalytics();
+  updateMenuStats();
+}
+
+// ============================================================
+// TAMPILAN VERIFIKASI CHIEF — satu laporan per satu, filter status sederhana
+// ============================================================
+let activeFilterVerifChief = 'pending';
+
+function buildVerifCardHtml(r, role){
+  const field = role === 'chief' ? 'verifChief' : 'verifManager';
+  const commentId = role === 'chief' ? `chiefComment_${r.id}` : `managerComment_${r.id}`;
+  const status = r[field] || 'pending';
+  const existingComment = r[field + 'Comment'] || '';
+  const roleArg = role === 'chief' ? 'verifChief' : 'verifManager';
+  return `
+      <div class="card">
+        <div class="card-top">
+          <div>
+            <div class="card-id">${r.id} · ${r.tanggal || '-'}</div>
+            <div class="card-title">${escapeHtml(r.jenisMesin || '-')} No.${escapeHtml(r.noMesin || '-')} — ${escapeHtml(r.mesin)}</div>
+          </div>
+          <span class="badge ${verifClass(status)}">${verifLabel(status)}</span>
+        </div>
+        <div class="row-actions" style="margin-top:6px;">
+          <span class="badge kategori">${escapeHtml(kategoriLabel(r.kategori))}</span>
+          ${role === 'manager' ? `<span class="badge ${verifClass(r.verifChief||'pending')}">Chief: ${verifLabel(r.verifChief||'pending')}</span>` : ''}
+        </div>
+        <div class="card-meta">
+          <strong>Kerusakan:</strong> ${escapeHtml(r.jenis)}<br>
+          <strong>Teknisi:</strong> ${escapeHtml(r.teknisi)}
+          ${(r.jamMulai && r.jamSelesai) ? `<br><strong>Waktu:</strong> ${r.jamMulai}–${r.jamSelesai} (${formatDurasi(r.durasiMenit)})` : ''}
+          ${r.analisaKerusakan ? '<br><strong>Analisa:</strong> ' + escapeHtml(r.analisaKerusakan) : ''}
+          ${r.penanganan ? '<br><strong>Penanganan:</strong> ' + escapeHtml(r.penanganan) : ''}
+          ${existingComment ? `<br><strong>Komentar sebelumnya:</strong> ${escapeHtml(existingComment)}` : ''}
+        </div>
+        ${r.fotoCount ? `
+          <div class="row-actions" style="margin-top:8px;">
+            <button type="button" class="btn small secondary" onclick="togglePhotos('${r.id}')">
+              🖼 ${expandedPhotoIds.has(r.id) ? 'Sembunyikan' : 'Lihat'} ${r.fotoCount} foto
+            </button>
+          </div>
+          ${expandedPhotoIds.has(r.id) ? `<div class="card-photos">${(photoCache[r.id]||[]).map(f=>`<img src="${f}">`).join('')}</div>` : ''}
+        ` : ''}
+        <label style="margin-top:10px;">Komentar</label>
+        <textarea id="${commentId}" placeholder="Komentar untuk laporan ini (opsional)">${escapeHtml(existingComment)}</textarea>
+        <div class="row-actions">
+          <button class="btn small" onclick="submitVerif('${r.id}','${roleArg}','approved','${commentId}')">✅ Setujui</button>
+          <button class="btn small secondary" onclick="submitVerif('${r.id}','${roleArg}','rejected','${commentId}')">❌ Tolak</button>
+        </div>
+      </div>
+  `;
+}
+
+async function submitVerif(id, role, status, commentElId){
+  const comment = commentElId && $(commentElId) ? $(commentElId).value : '';
+  await setVerif(id, role, status, comment);
+}
+
+$('filtersVerifChief').addEventListener('click', (e) => {
+  const btn = e.target.closest('.chip');
+  if(!btn) return;
+  activeFilterVerifChief = btn.dataset.f;
+  $('filtersVerifChief').querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c===btn));
+  renderVerifChief();
+});
+
+function renderVerifChief(){
+  if(!$('listVerifChief')) return;
+  let filtered = reports.filter(r => {
+    const s = r.verifChief || 'pending';
+    return activeFilterVerifChief === 'Semua' ? true : s === activeFilterVerifChief;
+  });
+  filtered.sort((a,b) => (a.tanggal||'').localeCompare(b.tanggal||''));
+  $('listVerifChief').innerHTML = filtered.length === 0
+    ? `<div class="empty">Tidak ada laporan pada status ini.</div>`
+    : filtered.map(r => buildVerifCardHtml(r, 'chief')).join('');
+  $('countNoteVerifChief').textContent = `${filtered.length} laporan ditampilkan`;
+}
+
+// ============================================================
+// TAMPILAN VERIFIKASI MANAJER — per periode mingguan/bulanan
+// ============================================================
+let activeFilterVerifManajer = 'pending';
+
+function getWeekRange(dateStr){
+  const d = dateStr ? new Date(dateStr + 'T00:00:00') : new Date();
+  const day = d.getDay(); // 0=Minggu, 1=Senin, ...
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const monday = new Date(d); monday.setDate(d.getDate() + diffToMonday);
+  const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+  const fmt = (x) => x.toISOString().slice(0,10);
+  return { from: fmt(monday), to: fmt(sunday) };
+}
+function getMonthRange(monthStr){
+  const [y, m] = (monthStr || new Date().toISOString().slice(0,7)).split('-').map(Number);
+  const first = new Date(y, m-1, 1);
+  const last = new Date(y, m, 0);
+  const fmt = (x) => x.toISOString().slice(0,10);
+  return { from: fmt(first), to: fmt(last) };
+}
+function currentManajerRange(){
+  const type = $('verifPeriodeType').value;
+  if(type === 'bulan') return getMonthRange($('verifPeriodeBulan').value);
+  return getWeekRange($('verifPeriodeMinggu').value);
+}
+
+$('verifPeriodeType').addEventListener('change', (e) => {
+  const isBulan = e.target.value === 'bulan';
+  $('verifPeriodeMingguWrap').style.display = isBulan ? 'none' : 'block';
+  $('verifPeriodeBulanWrap').style.display = isBulan ? 'block' : 'none';
+  renderVerifManajer();
+});
+$('verifPeriodeMinggu').addEventListener('change', renderVerifManajer);
+$('verifPeriodeBulan').addEventListener('change', renderVerifManajer);
+$('filtersVerifManajer').addEventListener('click', (e) => {
+  const btn = e.target.closest('.chip');
+  if(!btn) return;
+  activeFilterVerifManajer = btn.dataset.f;
+  $('filtersVerifManajer').querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c===btn));
+  renderVerifManajer();
+});
+
+function renderVerifManajer(){
+  if(!$('listVerifManajer')) return;
+  const { from, to } = currentManajerRange();
+  $('verifPeriodeRangeLabel').textContent = `Periode: ${from} sampai ${to}`;
+
+  let filtered = reports.filter(r => {
+    if(!r.tanggal || r.tanggal < from || r.tanggal > to) return false;
+    if(r.verifChief !== 'approved') return false; // manajer hanya menangani yang sudah lolos Chief
+    const s = r.verifManager || 'pending';
+    return activeFilterVerifManajer === 'Semua' ? true : s === activeFilterVerifManajer;
+  });
+  filtered.sort((a,b) => (a.tanggal||'').localeCompare(b.tanggal||''));
+
+  $('listVerifManajer').innerHTML = filtered.length === 0
+    ? `<div class="empty">Tidak ada laporan yang cocok pada periode &amp; filter ini.</div>`
+    : filtered.map(r => buildVerifCardHtml(r, 'manager')).join('');
+  $('countNoteVerifManajer').textContent = `${filtered.length} laporan ditampilkan pada periode ini`;
+}
+
+async function bulkApproveManajer(){
+  const { from, to } = currentManajerRange();
+  const targets = reports.filter(r => r.tanggal && r.tanggal >= from && r.tanggal <= to && r.verifChief === 'approved' && (r.verifManager || 'pending') === 'pending');
+  if(targets.length === 0){ toast('Tidak ada laporan menunggu di periode ini'); return; }
+  if(!confirm(`Setujui ${targets.length} laporan sekaligus untuk periode ${from} sampai ${to}?`)) return;
+  const managerName = prompt('Nama Manajer yang menyetujui semua laporan ini:');
+  if(managerName === null) return;
+  if(!managerName.trim()){ toast('Nama wajib diisi'); return; }
+  const sharedComment = $('bulkManajerComment').value || '';
+
+  toast(`Menyetujui ${targets.length} laporan...`);
+  for(const r of targets){
+    try{
+      const snap = await getDoc(doc(db, REPORTS_COL, r.id));
+      const current = snap.exists() ? { ...snap.data(), id: r.id } : null;
+      if(!current) continue;
+      current.verifManager = 'approved';
+      current.verifManagerBy = managerName.trim();
+      current.verifManagerAt = new Date().toISOString();
+      current.verifManagerComment = sharedComment.trim() || null;
+      const saved = await saveReport(current);
+      if(saved){
+        const local = reports.find(x => x.id === r.id);
+        if(local){
+          local.verifManager = current.verifManager;
+          local.verifManagerBy = current.verifManagerBy;
+          local.verifManagerAt = current.verifManagerAt;
+          local.verifManagerComment = current.verifManagerComment;
+        }
+      }
+    }catch(e){ /* lanjut ke laporan berikutnya kalau satu gagal */ }
+  }
+  toast(`${targets.length} laporan disetujui untuk periode ${from} - ${to}`);
+  render();
+  renderLihat();
+  renderVerifChief();
+  renderVerifManajer();
   renderAnalytics();
   updateMenuStats();
 }
@@ -1327,12 +1670,7 @@ function buildCardHtml(r, readOnly){
           <button class="btn small secondary" onclick="deleteReport('${r.id}')">Hapus</button>
         </div>`;
   const verifActionsHtml = readOnly ? '' : `
-        <div class="row-actions">
-          <button class="btn small secondary" onclick="setVerif('${r.id}','verifChief','approved')" ${r.verifChief==='approved'?'disabled':''}>✅ ACC Chief</button>
-          <button class="btn small secondary" onclick="setVerif('${r.id}','verifChief','rejected')" ${r.verifChief==='rejected'?'disabled':''}>❌ Tolak (Chief)</button>
-          <button class="btn small secondary" onclick="setVerif('${r.id}','verifManager','approved')" ${r.verifManager==='approved'?'disabled':''}>✅ ACC Manajer</button>
-          <button class="btn small secondary" onclick="setVerif('${r.id}','verifManager','rejected')" ${r.verifManager==='rejected'?'disabled':''}>❌ Tolak (Manajer)</button>
-        </div>`;
+        <p class="foot-note" style="margin:2px 0 4px;">Verifikasi Chief &amp; Manajer dilakukan di menu "Verifikasi Chief" / "Verifikasi Manajer" tersendiri (password berbeda).</p>`;
   const badgeText = downtimeBadgeText(r);
   return `
       <div class="card">
@@ -1359,7 +1697,9 @@ function buildCardHtml(r, readOnly){
           ${r.sparePart ? '<br><strong>Spare Part:</strong> ' + escapeHtml(r.sparePart) : ''}
           ${(r.jamMulai && r.jamSelesai) ? `<br><strong>Waktu:</strong> ${r.jamMulai}–${r.jamSelesai} (${formatDurasi(r.durasiMenit)})` : ''}
           ${r.verifChief==='approved' ? `<br><strong>ACC Chief:</strong> ${escapeHtml(r.verifChiefBy||'-')}` : ''}
+          ${r.verifChiefComment ? `<br><strong>Komentar Chief:</strong> ${escapeHtml(r.verifChiefComment)}` : ''}
           ${r.verifManager==='approved' ? `<br><strong>ACC Manajer:</strong> ${escapeHtml(r.verifManagerBy||'-')}` : ''}
+          ${r.verifManagerComment ? `<br><strong>Komentar Manajer:</strong> ${escapeHtml(r.verifManagerComment)}` : ''}
         </div>
         ${r.fotoCount ? `
           <div class="row-actions" style="margin-top:8px;">
@@ -1778,12 +2118,16 @@ function renderAnalytics(){
 $('f_tanggal').value = new Date().toISOString().slice(0,10);
 $('analyticsMonth').value = new Date().toISOString().slice(0,7);
 $('f_isdowntime').checked = true;
+$('verifPeriodeMinggu').value = new Date().toISOString().slice(0,10);
+$('verifPeriodeBulan').value = new Date().toISOString().slice(0,7);
 
 window.showView = showView;
 window.loadReports = loadReports;
 window.togglePhotos = togglePhotos;
 window.setStatus = setStatus;
 window.setVerif = setVerif;
+window.submitVerif = submitVerif;
+window.bulkApproveManajer = bulkApproveManajer;
 window.startEdit = startEdit;
 window.cancelEdit = cancelEdit;
 window.deleteReport = deleteReport;
@@ -1791,6 +2135,10 @@ window.removePhoto = removePhoto;
 window.openRekap = openRekap;
 window.closePwModal = closePwModal;
 window.checkPassword = checkPassword;
+window.openChiefView = openChiefView;
+window.openManajerView = openManajerView;
+window.closeRolePwModal = closeRolePwModal;
+window.checkRolePassword = checkRolePassword;
 
 showView('menu');
 loadReports();
